@@ -429,7 +429,99 @@ td{padding:0;border-bottom:1px solid var(--border2);vertical-align:middle}
 .name-opt-name{font-size:14px;font-weight:600;color:var(--text1);margin-bottom:2px}
 .name-opt-count{font-size:12px;color:var(--text3)}
 .name-opt-check{font-size:16px;color:var(--accent);font-weight:700}
-/* ── Print / PDF ── */
+/* ── Mobile ── */
+@media (max-width: 768px) {
+  body { overflow:auto; flex-direction:column; height:auto; min-height:100vh; }
+
+  /* Sidebar becomes a full-height slide-in drawer */
+  #sidebar {
+    position:fixed; top:0; left:0; bottom:0;
+    width:260px !important;
+    transform:translateX(-100%);
+    transition:transform 0.28s cubic-bezier(0.4,0,0.2,1);
+    z-index:300; min-height:100vh;
+  }
+  #sidebar.mobile-open { transform:translateX(0); }
+  #sidebar.collapsed { width:260px !important; }
+  #sidebar.collapsed .sb-nav-label,
+  #sidebar.collapsed .upload-btn-text,
+  #sidebar.collapsed .sb-section-label { opacity:1 !important; width:auto !important; }
+  #sidebar.collapsed #file-status,
+  #sidebar.collapsed #session-label { display:flex !important; }
+  #sb-toggle { display:none; }
+
+  /* Mobile overlay */
+  #mobile-overlay {
+    display:none; position:fixed; inset:0;
+    background:rgba(0,0,0,0.5); z-index:299;
+  }
+  #mobile-overlay.visible { display:block; }
+
+  /* Main takes full width */
+  #main { width:100%; }
+
+  /* Topbar: show hamburger, stack summary */
+  #topbar {
+    padding:0 12px; gap:8px; position:sticky; top:0; z-index:100;
+    flex-wrap:wrap; min-height:52px;
+  }
+  #hamburger-btn { display:flex !important; }
+  #alloc-summary { font-size:11px; }
+  #save-status { font-size:11px; }
+
+  /* Content padding */
+  #content { padding:12px 10px; overflow:visible; max-height:none; height:auto; }
+
+  /* Stats: 2×2 grid */
+  .stats-grid { grid-template-columns:repeat(2,1fr) !important; gap:10px; }
+  .stat-number { font-size:28px !important; }
+  .stat-card { padding:14px 12px; }
+
+  /* Filter row: wrap */
+  .filter-row { flex-wrap:wrap; gap:6px; padding:10px; }
+  .filter-pill { font-size:12px; padding:6px 10px; }
+  #search-btn { padding:7px 14px; font-size:12px; }
+  #clear-all-btn { font-size:12px; padding:6px 10px; }
+  .filter-chips-row { padding:0 10px 8px; }
+
+  /* Table: make it scrollable */
+  #table-section { border-radius:var(--radius); overflow:hidden; }
+  .table-header { flex-wrap:wrap; gap:8px; padding:12px 14px; }
+  .table-title { font-size:14px; }
+  .legend { display:none; }
+  .emp-td, .proj-td, .alloc-td, .date-td, .cap-td { padding:10px 10px !important; }
+  .emp-name { font-size:12px; }
+  .emp-role { font-size:10px; }
+  .proj-name { font-size:12px; }
+  .cap-pct { font-size:22px !important; }
+
+  /* Name picker */
+  #name-picker > div { max-width:100%; padding:0 4px; }
+
+  /* Distribution bar */
+  .distribution-bar { height:8px; }
+
+  /* Setup panel */
+  .setup-panel { padding:0; }
+  .setup-panel-header { flex-wrap:wrap; gap:10px; }
+
+  /* Bench cards */
+  #bench-cards { gap:8px; }
+  #bench-cards > div { min-width:120px !important; padding:10px 12px !important; }
+
+  /* Cloud setup */
+  #setup-sql { font-size:10px !important; }
+}
+
+@media (max-width: 480px) {
+  .stats-grid { grid-template-columns:repeat(2,1fr) !important; gap:8px; }
+  .stat-number { font-size:24px !important; }
+  #content { padding:8px 8px; }
+  .filter-row { padding:8px; gap:5px; }
+  #export-btn span:last-of-type,
+  #export-btn svg:last-child { display:none; }
+}
+</style>
 @media print {
   body{background:#fff}
   #sidebar,#filter-area,#topbar,#export-wrap{display:none!important}
@@ -525,9 +617,17 @@ td{padding:0;border-bottom:1px solid var(--border2);vertical-align:middle}
 
 <!-- MAIN -->
 <div id="main">
+  <!-- Mobile overlay -->
+  <div id="mobile-overlay" onclick="closeMobileSidebar()"></div>
+
   <!-- TOP BAR -->
   <header id="topbar">
-    <div id="page-title">Dashboard</div>
+    <div style="display:flex;align-items:center;gap:10px">
+      <button id="hamburger-btn" onclick="toggleMobileSidebar()" style="display:none;width:36px;height:36px;border-radius:8px;border:1px solid var(--border);background:var(--white);cursor:pointer;align-items:center;justify-content:center;flex-shrink:0">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      </button>
+      <div id="page-title">Dashboard</div>
+    </div>
     <div style="display:flex;align-items:center;gap:12px;font-size:12px;color:var(--text3)">
       <span id="save-status" style="display:none;align-items:center;gap:5px;font-size:11px;font-weight:500"></span>
       <span id="alloc-summary"></span>
@@ -1332,10 +1432,22 @@ function toggleSidebar() {
   S.sidebarCollapsed = !S.sidebarCollapsed;
   document.getElementById('sidebar').classList.toggle('collapsed', S.sidebarCollapsed);
 }
+function toggleMobileSidebar() {
+  const sb = document.getElementById('sidebar');
+  const ov = document.getElementById('mobile-overlay');
+  const isOpen = sb.classList.contains('mobile-open');
+  sb.classList.toggle('mobile-open', !isOpen);
+  ov.classList.toggle('visible', !isOpen);
+}
+function closeMobileSidebar() {
+  document.getElementById('sidebar').classList.remove('mobile-open');
+  document.getElementById('mobile-overlay').classList.remove('visible');
+}
 
 // ── Tab ──────────────────────────────────────────────────────────────
 function setTab(tab) {
   S.tab = tab;
+  closeMobileSidebar();  // always close drawer on mobile when navigating
   document.getElementById('tab-dashboard').style.display = tab==='dashboard' ? 'block' : 'none';
   document.getElementById('tab-setup').style.display     = tab==='setup'     ? 'block' : 'none';
   document.getElementById('tab-bench').style.display     = tab==='bench'     ? 'block' : 'none';
