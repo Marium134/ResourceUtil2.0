@@ -429,6 +429,9 @@ td{padding:0;border-bottom:1px solid var(--border2);vertical-align:middle}
 .name-opt-name{font-size:14px;font-weight:600;color:var(--text1);margin-bottom:2px}
 .name-opt-count{font-size:12px;color:var(--text3)}
 .name-opt-check{font-size:16px;color:var(--accent);font-weight:700}
+/* ── Mobile overlay (hidden by default on all screen sizes) ── */
+#mobile-overlay { display:none; }
+
 /* ── Mobile ── */
 @media (max-width: 768px) {
   body { overflow:auto; flex-direction:column; height:auto; min-height:100vh; }
@@ -521,7 +524,8 @@ td{padding:0;border-bottom:1px solid var(--border2);vertical-align:middle}
   #export-btn span:last-of-type,
   #export-btn svg:last-child { display:none; }
 }
-</style>
+
+/* ── Print / PDF ── */
 @media print {
   body{background:#fff}
   #sidebar,#filter-area,#topbar,#export-wrap{display:none!important}
