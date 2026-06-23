@@ -806,6 +806,14 @@ ALTER TABLE ru_data DISABLE ROW LEVEL SECURITY;</pre>
                   <button onclick="clearCloud()" style="padding:8px 14px;border-radius:6px;border:1px solid var(--border);background:var(--white);color:var(--text3);font-size:12px;cursor:pointer;font-family:inherit">Clear</button>
                   <span id="cloud-status" style="font-size:12px;font-weight:500"></span>
                 </div>
+                <div id="download-preconfigured-wrap" style="display:none;margin-top:14px;padding:14px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px">
+                  <div style="font-size:13px;font-weight:600;color:#15803d;margin-bottom:6px">✓ Connected to Supabase</div>
+                  <div style="font-size:12px;color:#166534;margin-bottom:10px">Download a pre-configured version of this file. It connects to your database automatically on <strong>any browser, any device</strong> — no setup needed.</div>
+                  <button onclick="downloadPreConfigured()" style="display:inline-flex;align-items:center;gap:7px;padding:8px 16px;border-radius:6px;border:none;background:#16a34a;color:#fff;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                    Download Pre-configured File
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -953,7 +961,10 @@ ALTER TABLE ru_data DISABLE ROW LEVEL SECURITY;</pre>
 </div>
 
 <script>
-// ── State ────────────────────────────────────────────────────────────
+// ── Preset cloud credentials (baked in at download time) ─────────────
+// These are auto-filled when you click "Download Pre-configured File"
+const PRESET_CLOUD_URL = 'https://gggyamvkenzaxmfboaax.supabase.co';
+const PRESET_CLOUD_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdnZ3lhbXZrZW56YXhtZmJvYWF4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIyMDY4MzYsImV4cCI6MjA5Nzc4MjgzNn0.tjX9dAeshM3CKgpEZsAD1PszJdV6hUFYU2-0uJGAjYc';
 const S = {
   tab: 'dashboard',
   allocations: [],
@@ -1043,6 +1054,13 @@ const CLOUD = {
   _url: null, _key: null,
 
   load() {
+    // Preset credentials baked into this file take priority (works on any browser)
+    if (typeof PRESET_CLOUD_URL !== 'undefined' && PRESET_CLOUD_URL) {
+      this._url = PRESET_CLOUD_URL;
+      this._key = PRESET_CLOUD_KEY;
+      return;
+    }
+    // Fallback: localStorage (current browser only)
     try {
       const cfg = JSON.parse(localStorage.getItem('ru_cloud_cfg') || 'null');
       if (cfg) { this._url = cfg.url; this._key = cfg.key; }
@@ -1223,6 +1241,7 @@ async function testAndSaveCloud() {
   const result = await CLOUD.testConnection();
   if (result.ok) {
     statusEl.innerHTML = '✓ Connected — data will now sync across all browsers.'; statusEl.style.color='#16a34a';
+    document.getElementById('download-preconfigured-wrap').style.display = 'block';
   } else {
     const msgs = {
       bad_key:     '✗ <strong>Invalid API key.</strong> Use the <em>anon / public</em> key from Project Settings → API.',
@@ -1236,6 +1255,31 @@ async function testAndSaveCloud() {
     statusEl.innerHTML = msgs[result.reason] || msgs.other;
     statusEl.style.color = '#dc2626';
   }
+}
+
+function downloadPreConfigured() {
+  if (!CLOUD.configured()) { alert('Please test and save the connection first.'); return; }
+  // Get the full current HTML and inject the credentials as preset constants
+  let html = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
+  const safeUrl = CLOUD._url.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+  const safeKey = CLOUD._key.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+  html = html.replace(
+    "const PRESET_CLOUD_URL = '';",
+    `const PRESET_CLOUD_URL = '${safeUrl}';`
+  );
+  html = html.replace(
+    "const PRESET_CLOUD_KEY = '';",
+    `const PRESET_CLOUD_KEY = '${safeKey}';`
+  );
+  const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url;
+  a.download = 'ResourceUtilizationDashboard.html';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
 function clearCloud() {
@@ -1303,13 +1347,14 @@ function setTab(tab) {
   document.getElementById('nav-bench').classList.toggle('active',     tab==='bench');
   if (tab==='setup') {
     renderSetupTable();
-    // Fill cloud credentials from saved config
     const urlEl = document.getElementById('cloud-url');
     const keyEl = document.getElementById('cloud-key');
     const stEl  = document.getElementById('cloud-status');
+    const dlEl  = document.getElementById('download-preconfigured-wrap');
     if (urlEl) urlEl.value = CLOUD._url || '';
     if (keyEl) keyEl.value = CLOUD._key || '';
-    if (stEl)  stEl.innerHTML = CLOUD.configured() ? '<span style="color:#16a34a">✓ Connected</span>' : '';
+    if (stEl)  stEl.innerHTML  = CLOUD.configured() ? '<span style="color:#16a34a">✓ Connected</span>' : '';
+    if (dlEl)  dlEl.style.display = CLOUD.configured() ? 'block' : 'none';
   }
   if (tab==='bench') { renderBenchDD('brole'); renderBenchDD('bprog'); renderBench(); }
 }
