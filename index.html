@@ -530,11 +530,6 @@ td{padding:0;border-bottom:1px solid var(--border2);vertical-align:middle}
     <div id="page-title">Dashboard</div>
     <div style="display:flex;align-items:center;gap:12px;font-size:12px;color:var(--text3)">
       <span id="save-status" style="display:none;align-items:center;gap:5px;font-size:11px;font-weight:500"></span>
-      <button onclick="showHistory()" style="display:inline-flex;align-items:center;gap:6px;padding:6px 13px;border-radius:50px;border:1px solid var(--border);background:var(--white);cursor:pointer;font-size:12px;font-weight:500;color:var(--text2);font-family:inherit;transition:all 0.15s" title="View all uploaded files">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-        History
-        <span id="history-badge" style="display:none;align-items:center;justify-content:center;min-width:17px;height:17px;padding:0 4px;border-radius:9px;background:var(--accent);color:#fff;font-size:10px;font-weight:700"></span>
-      </button>
       <span id="alloc-summary"></span>
     </div>
   </header>
@@ -800,16 +795,16 @@ ALTER TABLE ru_data DISABLE ROW LEVEL SECURITY;</pre>
               <div style="display:grid;gap:10px;max-width:560px">
                 <div>
                   <label style="font-size:12px;color:var(--text3);display:block;margin-bottom:4px">Project URL</label>
-                  <input id="cloud-url" class="form-input" placeholder="https://xxxx.supabase.co" value="${CLOUD._url||''}" style="width:100%"/>
+                  <input id="cloud-url" class="form-input" placeholder="https://xxxx.supabase.co" style="width:100%"/>
                 </div>
                 <div>
                   <label style="font-size:12px;color:var(--text3);display:block;margin-bottom:4px">Anon / Public Key</label>
-                  <input id="cloud-key" class="form-input" type="password" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9…" value="${CLOUD._key||''}" style="width:100%"/>
+                  <input id="cloud-key" class="form-input" type="password" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9…" style="width:100%"/>
                 </div>
                 <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
                   <button onclick="testAndSaveCloud()" style="padding:8px 18px;border-radius:6px;border:none;background:var(--accent);color:#fff;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit">Test & Save Connection</button>
                   <button onclick="clearCloud()" style="padding:8px 14px;border-radius:6px;border:1px solid var(--border);background:var(--white);color:var(--text3);font-size:12px;cursor:pointer;font-family:inherit">Clear</button>
-                  <span id="cloud-status" style="font-size:12px;font-weight:500">${CLOUD.configured()?'<span style=\"color:#16a34a\">✓ Connected</span>':''}</span>
+                  <span id="cloud-status" style="font-size:12px;font-weight:500"></span>
                 </div>
               </div>
             </div>
@@ -963,8 +958,8 @@ const S = {
   tab: 'dashboard',
   allocations: [],
   _rawRows: [],
+  _fileName: '',
   selectedName: '',
-  activeUploadId: null,
   empRoles: {},
   fEmpNames: [],
   fRoles: [],
@@ -1154,6 +1149,7 @@ async function cloudDel(key) {
 }
 
 // ── Roles ─────────────────────────────────────────────────────────────
+// Persists until a new Role Based Employees file is uploaded or panel edits are saved.
 async function saveRoles() {
   await cloudSet('emp_roles', S.empRoles);
 }
@@ -1162,20 +1158,32 @@ async function loadRoles() {
   if (v && typeof v === 'object') S.empRoles = v;
 }
 
-// ── Upload list (metadata without rows) ───────────────────────────────
-async function getUploadList() {
-  const v = await cloudGet('upload_list');
-  return Array.isArray(v) ? v : [];
+// ── Allocations ───────────────────────────────────────────────────────
+// Single record — overwritten each time a new file is uploaded.
+async function saveAllocations() {
+  setSaveStatus('saving');
+  try {
+    await cloudSet('allocations', {
+      fileName:     S._fileName || 'allocations',
+      selectedName: S.selectedName,
+      uploadedAt:   new Date().toISOString(),
+      rows:         S._rawRows,
+    });
+    setSaveStatus('saved');
+  } catch(e) {
+    setSaveStatus('error');
+    console.warn('Save allocations failed:', e);
+  }
 }
-async function saveUploadList(list) {
-  await cloudSet('upload_list', list);
-}
-// Rows stored separately to keep upload_list small
-async function saveUploadRows(id, rows) {
-  await cloudSet(`upload_rows_${id}`, rows);
-}
-async function getUploadRows(id) {
-  return cloudGet(`upload_rows_${id}`);
+async function loadAllocations() {
+  const v = await cloudGet('allocations');
+  if (v && Array.isArray(v.rows) && v.rows.length && v.selectedName) {
+    S._rawRows     = v.rows;
+    S.selectedName = v.selectedName;
+    S._fileName    = v.fileName || 'allocations';
+    return true;
+  }
+  return false;
 }
 
 // ── Save status indicator ─────────────────────────────────────────────
@@ -1190,98 +1198,11 @@ function setSaveStatus(state) {
   } else { el.style.display = 'none'; }
 }
 
-// ── Upload count badge ────────────────────────────────────────────────
-async function updateHistoryBadge() {
-  try {
-    const list = await getUploadList();
-    const badge = document.getElementById('history-badge');
-    if (badge) { badge.textContent = list.length; badge.style.display = list.length ? 'inline-flex' : 'none'; }
-  } catch {}
-}
-
-// ── History panel ─────────────────────────────────────────────────────
-async function showHistory() {
-  let list = await getUploadList();
-  list = list.slice().sort((a,b) => b.uploadedAt.localeCompare(a.uploadedAt));
-
-  const panel = document.getElementById('history-panel');
-  const ul    = document.getElementById('history-list');
-  if (!panel) return;
-
-  if (!list.length) {
-    ul.innerHTML = `<div style="padding:32px;text-align:center;color:var(--text3);font-size:13px">
-      No uploads saved yet. Upload an allocations file to get started.</div>`;
-  } else {
-    ul.innerHTML = list.map(u => {
-      const isActive = u.id === S.activeUploadId;
-      const dt = new Date(u.uploadedAt);
-      const ds = dt.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});
-      const ts = dt.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
-      return `<div style="display:flex;align-items:center;gap:12px;padding:14px 20px;border-bottom:1px solid var(--border2);${isActive?'background:#f0f4ff;':''}">
-        <div style="flex:1;min-width:0">
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:3px;flex-wrap:wrap">
-            <span style="font-size:13px;font-weight:600;color:var(--text1)">${escHtml(u.fileName)}</span>
-            ${isActive?`<span style="padding:2px 8px;background:var(--accent);color:#fff;border-radius:20px;font-size:10px;font-weight:700">Active</span>`:''}
-          </div>
-          <div style="font-size:12px;color:var(--text3)">${ds} ${ts}&nbsp;·&nbsp;${escHtml(u.selectedName||'—')}&nbsp;·&nbsp;${u.rowCount} records</div>
-        </div>
-        <div style="display:flex;gap:6px;flex-shrink:0">
-          ${!isActive?`<button onclick="loadUploadById('${u.id}')" style="padding:5px 12px;border-radius:6px;border:1px solid var(--border);background:var(--white);color:var(--text2);font-size:12px;cursor:pointer;font-family:inherit">Load</button>`:''}
-          <button onclick="confirmDeleteUpload('${u.id}')" style="padding:5px 10px;border-radius:6px;border:1px solid #fecaca;background:#fff5f5;color:#dc2626;font-size:12px;cursor:pointer;font-family:inherit">✕</button>
-        </div>
-      </div>`;
-    }).join('');
-  }
-  panel.style.display = 'flex';
-  const ov = document.getElementById('history-overlay');
-  if (ov) ov.style.display = 'block';
-}
-
-function closeHistory() {
-  const p = document.getElementById('history-panel');
-  const o = document.getElementById('history-overlay');
-  if (p) p.style.display = 'none';
-  if (o) o.style.display = 'none';
-}
-
-async function loadUploadById(id) {
-  try {
-    const list  = await getUploadList();
-    const meta  = list.find(u => u.id === id);
-    if (!meta) return;
-    const rows  = await getUploadRows(id);
-    if (!rows)  { alert('Row data not found for this upload.'); return; }
-    S._rawRows       = rows;
-    S.selectedName   = meta.selectedName || '';
-    S.activeUploadId = id;
-    S.allocations    = S._rawRows.filter(r => r.dirName === S.selectedName);
-    S.fEmpNames      = [];
-    await cloudSet('active_upload_id', id);
-    closeHistory();
-    applyUIAfterLoad(meta.fileName);
-  } catch(err) { alert('Could not load upload: ' + err.message); }
-}
-
-async function confirmDeleteUpload(id) {
-  const list = await getUploadList();
-  if (list.length <= 1) { alert('Cannot delete the only upload.'); return; }
-  if (!confirm('Delete this upload? This cannot be undone.')) return;
-  const newList = list.filter(u => u.id !== id);
-  await saveUploadList(newList);
-  await cloudDel(`upload_rows_${id}`);
-  if (S.activeUploadId === id) {
-    const next = newList.sort((a,b) => b.uploadedAt.localeCompare(a.uploadedAt))[0];
-    if (next) await loadUploadById(next.id);
-  }
-  showHistory();
-  updateHistoryBadge();
-}
-
 function applyUIAfterLoad(fileName) {
   document.getElementById('name-picker').style.display  = 'none';
   document.getElementById('filter-area').style.display  = 'block';
   document.getElementById('file-status').style.display  = 'flex';
-  document.getElementById('file-status-text').textContent = fileName.length>22 ? fileName.slice(0,22)+'…' : fileName;
+  document.getElementById('file-status-text').textContent = fileName.length > 22 ? fileName.slice(0,22)+'…' : fileName;
   document.getElementById('upload-btn-text').textContent  = 'Re-upload';
   document.getElementById('alloc-summary').innerHTML =
     `<span style="color:var(--accent);font-weight:600">${escHtml(S.selectedName)}</span>
@@ -1289,7 +1210,6 @@ function applyUIAfterLoad(fileName) {
      &nbsp;<button onclick="showNamePicker()" style="font-size:11px;color:var(--text3);background:none;border:none;cursor:pointer;text-decoration:underline;padding:0">change</button>`;
   setTab('dashboard');
   refreshDropdownOptions(); updateAllPills(); renderChips(); renderDashboard();
-  updateHistoryBadge();
 }
 
 // ── Cloud (Supabase) setup ────────────────────────────────────────────
@@ -1342,98 +1262,6 @@ function setSaveStatus(state) {
 }
 
 // History panel
-async function showHistory() {
-  let uploads;
-  try { uploads = await DB.getAllUploads(); } catch { uploads = []; }
-  uploads.sort((a, b) => b.uploadedAt.localeCompare(a.uploadedAt));
-
-  const panel = document.getElementById('history-panel');
-  const list  = document.getElementById('history-list');
-
-  if (!uploads.length) {
-    list.innerHTML = `<div style="padding:32px;text-align:center;color:var(--text3);font-size:13px">
-      No uploads saved yet. Upload an allocations file to get started.</div>`;
-  } else {
-    list.innerHTML = uploads.map(u => {
-      const isActive = u.id === S.activeUploadId;
-      const dt = new Date(u.uploadedAt);
-      const dateStr = dt.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});
-      const timeStr = dt.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
-      return `<div style="display:flex;align-items:center;gap:12px;padding:14px 20px;border-bottom:1px solid var(--border);${isActive?'background:#eff6ff;':''}" id="hist-row-${u.id}">
-        <div style="flex:1;min-width:0">
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:3px">
-            <span style="font-size:13px;font-weight:600;color:var(--text1)">${escHtml(u.fileName)}</span>
-            ${isActive?`<span style="padding:2px 8px;background:var(--accent);color:#fff;border-radius:20px;font-size:10px;font-weight:700">Active</span>`:''}
-          </div>
-          <div style="font-size:12px;color:var(--text3)">${dateStr} ${timeStr} &nbsp;·&nbsp; ${escHtml(u.selectedName||'—')} &nbsp;·&nbsp; ${u.rowCount} records</div>
-        </div>
-        <div style="display:flex;gap:6px;flex-shrink:0">
-          ${!isActive?`<button onclick="loadUploadById(${u.id})" style="padding:5px 12px;border-radius:6px;border:1px solid var(--border);background:var(--white);color:var(--text2);font-size:12px;cursor:pointer;font-family:inherit">Load</button>`:''}
-          <button onclick="confirmDeleteUpload(${u.id})" style="padding:5px 10px;border-radius:6px;border:1px solid #fecaca;background:#fff5f5;color:#dc2626;font-size:12px;cursor:pointer;font-family:inherit">✕</button>
-        </div>
-      </div>`;
-    }).join('');
-  }
-  panel.style.display = 'flex';
-  document.getElementById('history-overlay').style.display = 'block';
-}
-
-function closeHistory() {
-  document.getElementById('history-panel').style.display = 'none';
-  document.getElementById('history-overlay').style.display = 'none';
-}
-
-async function loadUploadById(id) {
-  try {
-    const upload = await DB.getUpload(id);
-    if (!upload) return;
-    S._rawRows       = upload.rows;
-    S.selectedName   = upload.selectedName || '';
-    S.activeUploadId = upload.id;
-    S.allocations    = S._rawRows.filter(r => r.dirName === S.selectedName);
-    S.fEmpNames      = [];
-    await DB.setSetting('activeUploadId', S.activeUploadId);
-    closeHistory();
-    applyUIAfterLoad(upload.fileName);
-  } catch(err) { alert('Could not load: ' + err.message); }
-}
-
-async function confirmDeleteUpload(id) {
-  const uploads = await DB.getAllUploads();
-  if (uploads.length <= 1) { alert('Cannot delete the only upload.'); return; }
-  if (!confirm('Delete this upload? This cannot be undone.')) return;
-  await DB.deleteUpload(id);
-  if (S.activeUploadId === id) {
-    // Switch to most recent remaining
-    const remaining = uploads.filter(u => u.id !== id).sort((a,b)=>b.uploadedAt.localeCompare(a.uploadedAt));
-    if (remaining.length) await loadUploadById(remaining[0].id);
-  }
-  showHistory();
-  updateHistoryBadge();
-}
-
-async function updateHistoryBadge() {
-  try {
-    const uploads = await DB.getAllUploads();
-    const badge = document.getElementById('history-badge');
-    if (badge) { badge.textContent = uploads.length; badge.style.display = uploads.length ? 'inline-flex' : 'none'; }
-  } catch {}
-}
-
-function applyUIAfterLoad(fileName) {
-  document.getElementById('name-picker').style.display  = 'none';
-  document.getElementById('filter-area').style.display  = 'block';
-  document.getElementById('file-status').style.display  = 'flex';
-  document.getElementById('file-status-text').textContent = fileName.length > 22 ? fileName.slice(0,22)+'…' : fileName;
-  document.getElementById('upload-btn-text').textContent  = 'Re-upload';
-  document.getElementById('alloc-summary').innerHTML =
-    `<span style="color:var(--accent);font-weight:600">${escHtml(S.selectedName)}</span>
-     &nbsp;·&nbsp; ${S.allocations.length} records
-     &nbsp;<button onclick="showNamePicker()" style="font-size:11px;color:var(--text3);background:none;border:none;cursor:pointer;text-decoration:underline;padding:0">change</button>`;
-  refreshDropdownOptions(); updateAllPills(); renderChips(); renderDashboard();
-  updateHistoryBadge();
-}
-
 // ── Helpers ──────────────────────────────────────────────────────────
 function getStatus(t) {
   if (t > 100) return 'overAllocated';
@@ -1473,7 +1301,16 @@ function setTab(tab) {
   document.getElementById('nav-dashboard').classList.toggle('active', tab==='dashboard');
   document.getElementById('nav-setup').classList.toggle('active',     tab==='setup');
   document.getElementById('nav-bench').classList.toggle('active',     tab==='bench');
-  if (tab==='setup') renderSetupTable();
+  if (tab==='setup') {
+    renderSetupTable();
+    // Fill cloud credentials from saved config
+    const urlEl = document.getElementById('cloud-url');
+    const keyEl = document.getElementById('cloud-key');
+    const stEl  = document.getElementById('cloud-status');
+    if (urlEl) urlEl.value = CLOUD._url || '';
+    if (keyEl) keyEl.value = CLOUD._key || '';
+    if (stEl)  stEl.innerHTML = CLOUD.configured() ? '<span style="color:#16a34a">✓ Connected</span>' : '';
+  }
   if (tab==='bench') { renderBenchDD('brole'); renderBenchDD('bprog'); renderBench(); }
 }
 
@@ -1498,21 +1335,8 @@ async function handleAllocUpload(e) {
         dirName:     String(r['Name']||'').trim(),
       })).filter(r => r.empName && r.empName !== 'Emp Name');
 
-      setSaveStatus('saving');
-      // Generate a unique ID for this upload
-      const uploadId = `up_${Date.now()}`;
-      const meta = { id: uploadId, uploadedAt: new Date().toISOString(), fileName, selectedName: '', rowCount: rows.length };
-
-      // Save rows separately (can be large), then update the metadata list
-      await saveUploadRows(uploadId, rows);
-      const list = await getUploadList();
-      list.push(meta);
-      await saveUploadList(list);
-      setSaveStatus('saved');
-
-      S._rawRows       = rows;
-      S.activeUploadId = uploadId;
-      updateHistoryBadge();
+      S._rawRows  = rows;
+      S._fileName = fileName;
 
       document.getElementById('file-status').style.display = 'flex';
       document.getElementById('file-status-text').textContent = fileName.length>22 ? fileName.slice(0,22)+'…' : fileName;
@@ -1579,14 +1403,8 @@ async function applyNameFilter(name) {
   S.selectedName = name;
   S.allocations  = S._rawRows.filter(r => r.dirName === name);
   S.fEmpNames    = [];
-  // Update the upload metadata in the list with the chosen name
-  try {
-    const list = await getUploadList();
-    const entry = list.find(u => u.id === S.activeUploadId);
-    if (entry) { entry.selectedName = name; await saveUploadList(list); }
-    await cloudSet('active_upload_id', S.activeUploadId);
-  } catch {}
-  applyUIAfterLoad(document.getElementById('file-status-text').textContent || name);
+  await saveAllocations();   // overwrites previous allocation record in DB
+  applyUIAfterLoad(S._fileName || name);
 }
 
 // Case-insensitive lookup: handles mismatches like "Atib baqai" vs "Atib Baqai"
@@ -2534,43 +2352,18 @@ async function boot() {
   renderChips();
   if (Object.keys(S.empRoles).length) refreshDropdownOptions();
 
-  try {
-    const activeId = await cloudGet('active_upload_id');
-    if (activeId) {
-      const list = await getUploadList();
-      const meta = list.find(u => u.id === activeId);
-      if (meta && meta.selectedName) {
-        const rows = await getUploadRows(activeId);
-        if (rows && rows.length) {
-          S._rawRows       = rows;
-          S.selectedName   = meta.selectedName;
-          S.activeUploadId = activeId;
-          S.allocations    = rows.filter(r => r.dirName === meta.selectedName);
-          if (S.allocations.length > 0) {
-            applyUIAfterLoad(meta.fileName);
-            return;
-          }
-        }
-      }
+  const hadAlloc = await loadAllocations();
+  if (hadAlloc) {
+    S.allocations = S._rawRows.filter(r => r.dirName === S.selectedName);
+    if (S.allocations.length > 0) {
+      applyUIAfterLoad(S._fileName || S.selectedName);
+      return;
     }
-  } catch(e) { console.warn('Boot load failed:', e); }
-  updateHistoryBadge();
+  }
 }
 boot();
 </script>
 
-<!-- History overlay + modal -->
-<div id="history-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:999" onclick="closeHistory()"></div>
-<div id="history-panel" style="display:none;position:fixed;top:0;right:0;bottom:0;width:520px;max-width:95vw;background:var(--white);box-shadow:-4px 0 32px rgba(0,0,0,0.18);z-index:1000;flex-direction:column">
-  <div style="display:flex;align-items:center;justify-content:space-between;padding:18px 20px;border-bottom:1px solid var(--border);flex-shrink:0">
-    <div style="font-family:'Outfit',sans-serif;font-size:17px;font-weight:700">Upload History</div>
-    <button onclick="closeHistory()" style="width:30px;height:30px;border-radius:50%;border:1px solid var(--border);background:var(--bg);cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center;color:var(--text2)">✕</button>
-  </div>
-  <div style="padding:12px 20px;border-bottom:1px solid var(--border2);background:#f8fafc;flex-shrink:0">
-    <p style="font-size:12px;color:var(--text3);margin:0">Each upload is stored separately — nothing is ever overwritten. Click <strong>Load</strong> to switch to a previous version.</p>
-  </div>
-  <div id="history-list" style="flex:1;overflow-y:auto"></div>
-</div>
 
 </body>
 </html>
