@@ -571,7 +571,7 @@ td{padding:0;border-bottom:1px solid var(--border2);vertical-align:middle}
       <span class="sb-nav-label">Dashboard</span>
       <span class="sb-nav-tooltip">Dashboard</span>
     </button>
-    <button class="sb-nav-item" id="nav-setup" onclick="setTab('setup')">
+    <button class="sb-nav-item" id="nav-setup" onclick="setTab('setup')" style="display:none">
       <span class="sb-nav-icon">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
       </span>
@@ -2509,6 +2509,12 @@ function benchClearAll() {
 
 // ── Boot ──────────────────────────────────────────────────────────────
 async function boot() {
+  // Secret setup access via URL: add ?setup to the URL to open Employee Setup
+  const isSetupMode = window.location.search.includes('setup') || window.location.hash === '#setup';
+  if (isSetupMode) {
+    document.getElementById('nav-setup').style.display = '';
+  }
+
   await loadRoles();
   renderChips();
   if (Object.keys(S.empRoles).length) refreshDropdownOptions();
@@ -2518,9 +2524,11 @@ async function boot() {
     S.allocations = S._rawRows.filter(r => r.dirName === S.selectedName);
     if (S.allocations.length > 0) {
       applyUIAfterLoad(S._fileName || S.selectedName);
-      return;
     }
   }
+
+  // If setup mode, navigate there after data loads
+  if (isSetupMode) setTab('setup');
 }
 boot();
 </script>
