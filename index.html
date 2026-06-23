@@ -1,0 +1,2576 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Resource Utilization Agent</title>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root {
+  --sidebar-w: 228px;
+  --sidebar-collapsed-w: 66px;
+  --nav: #0f172a;
+  --nav2: #1e293b;
+  --nav3: #334155;
+  --accent: #6366f1;
+  --accent-light: rgba(99,102,241,0.12);
+  --bg: #f1f5f9;
+  --white: #ffffff;
+  --border: #e2e8f0;
+  --border2: #f1f5f9;
+  --text1: #0f172a;
+  --text2: #475569;
+  --text3: #94a3b8;
+  --green: #16a34a; --green-bg: #dcfce7; --green-border: #bbf7d0; --green-dot: #22c55e;
+  --amber: #b45309; --amber-bg: #fef3c7; --amber-border: #fde68a; --amber-dot: #f59e0b;
+  --red: #b91c1c;   --red-bg: #fee2e2;   --red-border: #fecaca;   --red-dot: #ef4444;
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.08), 0 2px 4px rgba(0,0,0,0.04);
+  --shadow-lg: 0 10px 24px rgba(0,0,0,0.12), 0 4px 8px rgba(0,0,0,0.06);
+  --radius: 10px;
+  --radius-sm: 7px;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text1);height:100vh;display:flex;overflow:hidden}
+button,input,select{font-family:inherit}
+input:focus,button:focus{outline:none}
+
+/* ── Sidebar ── */
+#sidebar {
+  width: var(--sidebar-w);
+  min-height:100vh;
+  background: var(--nav);
+  display:flex;flex-direction:column;
+  transition: width 0.28s cubic-bezier(0.4,0,0.2,1);
+  flex-shrink:0;overflow:hidden;position:relative;z-index:10;
+  box-shadow: 2px 0 12px rgba(0,0,0,0.15);
+}
+#sidebar.collapsed{ width: var(--sidebar-collapsed-w); }
+
+.sb-brand {
+  padding:18px 16px 16px;
+  border-bottom:1px solid rgba(255,255,255,0.06);
+  display:flex;align-items:center;gap:10px;
+}
+.sb-logo{
+  width:36px;height:36px;border-radius:9px;flex-shrink:0;
+  background:linear-gradient(135deg,var(--accent),#8b5cf6);
+  display:flex;align-items:center;justify-content:center;
+  font-family:'Outfit',sans-serif;font-weight:800;font-size:14px;color:#fff;letter-spacing:-0.5px;
+}
+.sb-brand-text{overflow:hidden;white-space:nowrap}
+.sb-brand-title{font-family:'Outfit',sans-serif;font-size:14px;font-weight:700;color:#f1f5f9;letter-spacing:-0.2px}
+.sb-brand-sub{font-size:11px;color:var(--nav3);margin-top:1px}
+
+.sb-toggle-row{
+  display:flex;align-items:center;justify-content:flex-end;
+  padding:8px 12px 0;
+}
+#sb-toggle{
+  width:28px;height:28px;border-radius:7px;border:1px solid rgba(255,255,255,0.08);
+  background:rgba(255,255,255,0.04);cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  transition:background 0.15s;flex-shrink:0;
+}
+#sb-toggle:hover{background:rgba(255,255,255,0.1)}
+#sb-toggle svg{transition:transform 0.28s;flex-shrink:0}
+#sidebar.collapsed #sb-toggle svg{transform:rotate(180deg)}
+
+.sb-section-label{
+  font-size:9.5px;font-weight:600;color:var(--nav3);text-transform:uppercase;letter-spacing:1px;
+  padding:16px 16px 6px;white-space:nowrap;overflow:hidden;
+  transition:opacity 0.2s;
+}
+#sidebar.collapsed .sb-section-label{opacity:0;height:0;padding:0;pointer-events:none}
+
+.sb-nav{padding:0 8px;flex:1}
+.sb-nav-item{
+  display:flex;align-items:center;gap:10px;
+  padding:10px 10px;border-radius:var(--radius-sm);cursor:pointer;
+  border:none;background:transparent;color:var(--nav3);
+  width:100%;text-align:left;font-size:13px;font-weight:500;
+  transition:all 0.15s;white-space:nowrap;margin-bottom:2px;
+  position:relative;
+}
+.sb-nav-item:hover{background:rgba(255,255,255,0.06);color:#e2e8f0}
+.sb-nav-item.active{background:var(--accent-light);color:#a5b4fc}
+.sb-nav-item.active .sb-nav-icon{color:var(--accent)}
+.sb-nav-icon{width:20px;height:20px;flex-shrink:0;display:flex;align-items:center;justify-content:center}
+.sb-nav-label{overflow:hidden;white-space:nowrap;transition:opacity 0.18s,width 0.28s;font-weight:500}
+#sidebar.collapsed .sb-nav-label{opacity:0;width:0}
+.sb-nav-tooltip{
+  display:none;position:absolute;left:calc(100% + 10px);top:50%;transform:translateY(-50%);
+  background:var(--nav2);color:#e2e8f0;font-size:12px;padding:5px 10px;border-radius:7px;
+  white-space:nowrap;pointer-events:none;box-shadow:var(--shadow-md);
+}
+#sidebar.collapsed .sb-nav-item:hover .sb-nav-tooltip{display:block}
+
+.sb-bottom{
+  padding:12px 10px;border-top:1px solid rgba(255,255,255,0.06);
+}
+#upload-btn{
+  display:flex;align-items:center;gap:8px;width:100%;
+  padding:10px 10px;border-radius:var(--radius-sm);border:1px dashed rgba(255,255,255,0.15);
+  background:rgba(255,255,255,0.04);cursor:pointer;color:#94a3b8;
+  font-size:12px;font-weight:500;transition:all 0.15s;white-space:nowrap;overflow:hidden;
+}
+#upload-btn:hover{background:rgba(255,255,255,0.08);color:#e2e8f0;border-color:rgba(255,255,255,0.25)}
+.upload-btn-icon{width:18px;height:18px;flex-shrink:0;display:flex;align-items:center;justify-content:center}
+.upload-btn-text{overflow:hidden;transition:opacity 0.18s,width 0.28s;white-space:nowrap}
+#sidebar.collapsed .upload-btn-text{opacity:0;width:0}
+#file-status{
+  display:flex;align-items:center;gap:5px;padding:5px 8px;
+  background:rgba(34,197,94,0.1);border-radius:6px;margin-bottom:8px;
+  white-space:nowrap;overflow:hidden;
+}
+#file-status-text{font-size:10.5px;color:#4ade80;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#sidebar.collapsed #file-status{display:none}
+#sidebar.collapsed #session-label{display:none}
+
+/* ── Main ── */
+#main{flex:1;display:flex;flex-direction:column;min-width:0;overflow:hidden}
+
+/* ── Topbar ── */
+#topbar{
+  background:var(--white);border-bottom:1px solid var(--border);
+  padding:0 24px;display:flex;align-items:center;justify-content:space-between;
+  min-height:56px;gap:12px;flex-shrink:0;
+}
+#page-title{font-family:'Outfit',sans-serif;font-size:16px;font-weight:700;color:var(--text1);white-space:nowrap}
+
+/* ── Filter bar ── */
+#filter-area{
+  background:var(--white);border-bottom:1px solid var(--border);
+  padding:12px 24px;flex-shrink:0;
+}
+.filter-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.filter-chips-row{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:8px}
+.filter-chips-row:empty{margin-top:0}
+
+.filter-pill{
+  display:inline-flex;align-items:center;gap:6px;
+  padding:7px 13px;border-radius:50px;border:1.5px solid var(--border);
+  background:var(--white);cursor:pointer;font-size:13px;font-weight:500;
+  color:var(--text2);transition:all 0.15s;white-space:nowrap;position:relative;
+}
+.filter-pill:hover{border-color:#94a3b8;color:var(--text1)}
+.filter-pill.has-value{border-color:var(--accent);background:rgba(99,102,241,0.06);color:var(--accent)}
+.filter-pill.open{border-color:var(--accent);box-shadow:0 0 0 3px rgba(99,102,241,0.12)}
+.filter-pill svg{flex-shrink:0;transition:transform 0.15s}
+.filter-pill.open svg.chevron{transform:rotate(180deg)}
+.filter-badge{
+  display:inline-flex;align-items:center;justify-content:center;
+  min-width:18px;height:18px;padding:0 5px;border-radius:9px;
+  background:var(--accent);color:#fff;font-size:10px;font-weight:700;
+}
+.active-chip{
+  display:inline-flex;align-items:center;gap:5px;
+  padding:4px 10px 4px 11px;border-radius:50px;
+  background:#f1f5f9;border:1px solid var(--border);
+  font-size:12px;color:var(--text2);
+}
+.active-chip .chip-x{
+  width:16px;height:16px;border-radius:50%;background:var(--border);
+  display:flex;align-items:center;justify-content:center;cursor:pointer;
+  font-size:10px;color:var(--text3);border:none;
+  transition:all 0.12s;flex-shrink:0;line-height:1;
+}
+.active-chip .chip-x:hover{background:#cbd5e1;color:var(--text1)}
+#clear-all-btn{
+  display:none;align-items:center;gap:4px;padding:4px 10px;
+  border-radius:50px;border:1px solid #fecaca;background:#fff5f5;
+  color:#dc2626;font-size:12px;cursor:pointer;transition:all 0.12s;
+}
+#clear-all-btn:hover{background:#fee2e2}
+#clear-all-btn.visible{display:inline-flex}
+
+/* ── Dropdown ── */
+.filter-dropdown{
+  position:absolute;top:calc(100% + 6px);left:0;z-index:1000;
+  background:var(--white);border:1px solid var(--border);border-radius:var(--radius);
+  box-shadow:var(--shadow-lg);min-width:240px;max-width:300px;
+  display:none;flex-direction:column;
+}
+.filter-dropdown.open{display:flex}
+.dropdown-search{padding:10px 12px;border-bottom:1px solid var(--border2)}
+.dropdown-search input{
+  width:100%;padding:7px 11px 7px 32px;border:1px solid var(--border);border-radius:7px;
+  font-size:13px;color:var(--text1);background:#f8fafc;transition:border-color 0.15s;
+}
+.dropdown-search input:focus{border-color:var(--accent);background:var(--white)}
+.dropdown-search-wrap{position:relative}
+.dropdown-search-icon{position:absolute;left:9px;top:50%;transform:translateY(-50%);color:var(--text3)}
+.dropdown-actions{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:8px 12px;border-bottom:1px solid var(--border2);
+}
+.dropdown-act-btn{
+  font-size:12px;color:var(--accent);background:none;border:none;cursor:pointer;padding:0;font-weight:500;
+}
+.dropdown-act-btn:hover{text-decoration:underline}
+.dropdown-list{max-height:220px;overflow-y:auto;padding:4px 0}
+.dropdown-list::-webkit-scrollbar{width:4px}
+.dropdown-list::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+.dropdown-item{
+  display:flex;align-items:center;gap:10px;
+  padding:8px 14px;cursor:pointer;transition:background 0.1s;
+  user-select:none;
+}
+.dropdown-item:hover{background:#f8fafc}
+.dropdown-item.selected{background:#eff6ff}
+.dropdown-item input[type=checkbox]{
+  width:15px;height:15px;accent-color:var(--accent);flex-shrink:0;cursor:pointer;
+}
+.dropdown-item-label{font-size:13px;color:var(--text1)}
+.dropdown-empty{padding:16px;text-align:center;font-size:13px;color:var(--text3)}
+
+/* ── Content area ── */
+#content{flex:1;overflow-y:auto;padding:24px}
+#content::-webkit-scrollbar{width:5px}
+#content::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+
+/* ── Empty state ── */
+.empty-state{
+  background:var(--white);border:2px dashed var(--border);border-radius:var(--radius);
+  padding:64px 40px;text-align:center;
+}
+.empty-icon{font-size:40px;margin-bottom:14px;opacity:0.5}
+.empty-title{font-family:'Outfit',sans-serif;font-size:17px;font-weight:700;color:var(--text1);margin-bottom:6px}
+.empty-sub{font-size:13px;color:var(--text3)}
+
+/* ── Stats chart ── */
+#stats-section{margin-bottom:20px}
+.stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:12px}
+.stat-card{
+  background:var(--white);border-radius:var(--radius);border:1.5px solid var(--border);
+  padding:20px;cursor:pointer;transition:all 0.18s;position:relative;overflow:hidden;
+  box-shadow:var(--shadow-sm);
+}
+.stat-card:hover{box-shadow:var(--shadow-md);transform:translateY(-1px)}
+.stat-card.active{border-width:2px}
+.stat-card.active.c-green{background:var(--green-bg);border-color:var(--green-border)}
+.stat-card.active.c-amber{background:var(--amber-bg);border-color:var(--amber-border)}
+.stat-card.active.c-red{background:var(--red-bg);border-color:var(--red-border)}
+.stat-card-top{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:14px}
+.stat-icon-wrap{
+  width:36px;height:36px;border-radius:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0;
+}
+.stat-pct-badge{
+  font-size:11px;font-weight:600;padding:3px 9px;border-radius:50px;
+  transition:all 0.15s;
+}
+.stat-number{
+  font-family:'Outfit',sans-serif;font-size:38px;font-weight:800;line-height:1;
+  margin-bottom:5px;
+}
+.stat-label{font-size:12px;font-weight:500;margin-bottom:12px}
+.stat-bar-wrap{height:5px;border-radius:3px;overflow:hidden}
+.stat-bar{height:100%;border-radius:3px;transition:width 0.5s ease}
+
+.distribution-bar{
+  height:10px;border-radius:5px;overflow:hidden;display:flex;
+  box-shadow:var(--shadow-sm);
+}
+.dist-segment{transition:width 0.5s ease;cursor:pointer}
+.dist-segment:hover{filter:brightness(1.1)}
+
+/* ── Table ── */
+#table-section{background:var(--white);border-radius:var(--radius);border:1px solid var(--border);overflow:hidden;box-shadow:var(--shadow-sm)}
+.table-header{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.table-title{font-family:'Outfit',sans-serif;font-size:15px;font-weight:700;color:var(--text1)}
+.table-meta{font-size:12px;color:var(--text3);margin-top:2px}
+.legend{display:flex;align-items:center;gap:14px}
+.legend-item{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text3)}
+.legend-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.table-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13px}
+thead th{
+  padding:11px 16px;text-align:left;
+  font-size:10.5px;font-weight:600;color:var(--text3);
+  text-transform:uppercase;letter-spacing:0.6px;
+  background:#f8fafc;border-bottom:1px solid var(--border);white-space:nowrap;
+}
+thead th.th-cap{text-align:center;background:#f0f4ff;color:#6366f1}
+tbody tr{transition:background 0.08s}
+tbody tr:hover td{background:rgba(99,102,241,0.025) !important}
+td{padding:0;border-bottom:1px solid var(--border2);vertical-align:middle}
+
+/* Employee cell */
+.emp-td{
+  padding:16px 18px;vertical-align:middle;
+  border-bottom:2px solid var(--border) !important;
+  border-right:1px solid var(--border2);min-width:200px;
+  background:var(--white);
+}
+.emp-inner{display:flex;align-items:center;gap:11px}
+.emp-avatar{
+  width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  font-family:'Outfit',sans-serif;font-size:13px;font-weight:700;flex-shrink:0;
+}
+.emp-name{font-size:13px;font-weight:600;color:var(--text1);line-height:1.3;margin-bottom:2px}
+.emp-role{font-size:11px;color:var(--text3);line-height:1.3;margin-bottom:5px}
+.prog-badge{
+  display:inline-block;padding:2px 8px;border-radius:50px;
+  background:rgba(99,102,241,0.1);color:var(--accent);font-size:10px;font-weight:600;
+}
+
+/* Project cell */
+.proj-td{padding:11px 16px;border-bottom:inherit;max-width:280px}
+.proj-name{font-size:13px;color:var(--text1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.4;margin-bottom:2px}
+.proj-id{font-size:11px;color:var(--text3)}
+
+/* Alloc cell */
+.alloc-td{padding:11px 16px;border-bottom:inherit;min-width:140px}
+.alloc-row{display:flex;align-items:center;gap:8px}
+.alloc-track{flex:1;height:6px;background:#f1f5f9;border-radius:3px;overflow:hidden}
+.alloc-fill{height:100%;border-radius:3px;transition:width 0.3s}
+.alloc-pct{font-size:12px;font-weight:600;min-width:36px;text-align:right}
+
+/* Date cell */
+.date-td{padding:11px 16px;border-bottom:inherit;white-space:nowrap}
+.date-row{display:flex;align-items:center;gap:7px}
+.date-icon{color:var(--text3);flex-shrink:0}
+.date-start{font-size:12px;color:var(--text1);margin-bottom:2px}
+.date-end{font-size:11px;color:var(--text3)}
+
+/* Capacity cell */
+.cap-td{
+  vertical-align:middle;text-align:center;
+  padding:16px 18px;min-width:145px;
+  border-bottom:2px solid var(--border) !important;
+  border-left:3px solid transparent;
+}
+.cap-inner{display:inline-flex;flex-direction:column;align-items:center;gap:5px}
+.cap-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.7px}
+.cap-pct{font-family:'Outfit',sans-serif;font-size:32px;font-weight:800;line-height:1}
+.cap-bar-wrap{width:72px;height:5px;border-radius:3px;overflow:hidden}
+.cap-bar{height:100%;border-radius:3px}
+.cap-projects{font-size:10px;opacity:0.65}
+
+/* ── Employee Setup ── */
+#setup-content{max-width:900px}
+.setup-panel{background:var(--white);border-radius:var(--radius);border:1px solid var(--border);box-shadow:var(--shadow-sm);margin-bottom:16px}
+.setup-panel-header{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px}
+.setup-panel-title{font-family:'Outfit',sans-serif;font-size:14px;font-weight:700}
+.setup-panel-sub{font-size:12px;color:var(--text3);margin-top:2px}
+.setup-actions{display:flex;gap:8px}
+.btn{
+  display:inline-flex;align-items:center;gap:6px;padding:8px 16px;
+  border-radius:var(--radius-sm);border:1px solid;font-size:13px;font-weight:500;
+  cursor:pointer;transition:all 0.15s;white-space:nowrap;
+}
+.btn-primary{background:rgba(99,102,241,0.08);border-color:rgba(99,102,241,0.3);color:var(--accent)}
+.btn-primary:hover{background:rgba(99,102,241,0.15)}
+.btn-success{background:#f0fdf4;border-color:#bbf7d0;color:var(--green)}
+.btn-success:hover{background:#dcfce7}
+.btn-danger{background:#fff5f5;border-color:#fecaca;color:var(--red)}
+.btn-danger:hover{background:#fee2e2}
+.btn-ghost{background:transparent;border-color:var(--border);color:var(--text2)}
+.btn-ghost:hover{background:#f8fafc}
+
+#add-emp-form{padding:16px 20px;border-bottom:1px solid var(--border);background:#f0fdf4;display:none}
+#add-emp-form.visible{display:block}
+.form-row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}
+.form-field{flex:1;min-width:130px}
+.form-field.wide{flex:2}
+.form-label{font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:4px}
+.form-input{
+  width:100%;padding:8px 11px;border:1px solid var(--border);border-radius:var(--radius-sm);
+  font-size:13px;color:var(--text1);background:var(--white);transition:border-color 0.15s;
+}
+.form-input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(99,102,241,0.1)}
+
+.setup-table{width:100%;border-collapse:collapse;font-size:13px}
+.setup-table th{
+  padding:10px 18px;text-align:left;font-size:10.5px;font-weight:600;color:var(--text3);
+  text-transform:uppercase;letter-spacing:0.6px;background:#f8fafc;border-bottom:1px solid var(--border);
+}
+.setup-table td{padding:10px 18px;border-bottom:1px solid var(--border2)}
+.setup-table .edit-input{width:100%;padding:5px 8px;border:1px solid var(--accent);border-radius:6px;font-size:13px;background:var(--white)}
+.setup-search-wrap{position:relative;flex-shrink:0}
+.setup-search{padding:7px 11px 7px 30px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:13px;color:var(--text1);width:200px;background:var(--white)}
+.setup-search:focus{border-color:var(--accent)}
+.setup-search-icon{position:absolute;left:9px;top:50%;transform:translateY(-50%);color:var(--text3)}
+
+#search-btn{
+  display:inline-flex;align-items:center;gap:7px;
+  padding:8px 20px;border-radius:50px;
+  border:none;background:var(--accent);color:#fff;
+  font-size:13px;font-weight:600;cursor:pointer;
+  transition:all 0.15s;box-shadow:0 2px 8px rgba(99,102,241,0.35);
+  font-family:inherit;
+}
+#search-btn:hover{background:#4f46e5;box-shadow:0 4px 14px rgba(99,102,241,0.45);transform:translateY(-1px)}
+#search-btn:active{transform:translateY(0);box-shadow:0 2px 8px rgba(99,102,241,0.35)}
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+
+/* No data */
+.no-data-row td{text-align:center;padding:48px;color:var(--text3);font-size:13px}
+
+/* Name picker */
+.name-opt-btn{
+  display:flex;align-items:center;gap:14px;width:100%;
+  padding:14px 18px;border-radius:var(--radius);border:1.5px solid var(--border);
+  background:var(--white);cursor:pointer;text-align:left;
+  transition:all 0.15s;box-shadow:var(--shadow-sm);
+}
+.name-opt-btn:hover{border-color:var(--accent);box-shadow:var(--shadow-md);transform:translateY(-1px)}
+.name-opt-btn.active{border-color:var(--accent);background:rgba(99,102,241,0.04)}
+.name-opt-avatar{
+  width:42px;height:42px;border-radius:50%;flex-shrink:0;
+  background:rgba(99,102,241,0.12);color:var(--accent);
+  display:flex;align-items:center;justify-content:center;
+  font-family:'Outfit',sans-serif;font-size:14px;font-weight:700;
+}
+.name-opt-btn.active .name-opt-avatar{background:var(--accent);color:#fff}
+.name-opt-text{flex:1}
+.name-opt-name{font-size:14px;font-weight:600;color:var(--text1);margin-bottom:2px}
+.name-opt-count{font-size:12px;color:var(--text3)}
+.name-opt-check{font-size:16px;color:var(--accent);font-weight:700}
+/* ── Print / PDF ── */
+@media print {
+  body{background:#fff}
+  #sidebar,#filter-area,#topbar,#export-wrap{display:none!important}
+  #main{display:block}
+  #content{padding:12px;overflow:visible;max-height:none}
+  #tab-setup{display:none!important}
+  .stat-card,.table-header{box-shadow:none!important}
+  .stat-card{break-inside:avoid;border:1px solid #ccc}
+  #table-section{border:1px solid #ccc;border-radius:0}
+  thead th{background:#f3f4f6!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .cap-td,.stat-icon-wrap{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  tr{break-inside:avoid}
+  @page{margin:1.5cm;size:A4 landscape}
+}
+</style>
+</head>
+<body>
+
+<!-- SIDEBAR -->
+<aside id="sidebar">
+  <div class="sb-brand">
+    <div class="sb-logo">RU</div>
+    <div class="sb-brand-text">
+      <div class="sb-brand-title">Resource Util.</div>
+      <div class="sb-brand-sub">Agent Dashboard</div>
+    </div>
+  </div>
+
+  <div class="sb-toggle-row">
+    <button id="sb-toggle" onclick="toggleSidebar()" title="Toggle sidebar">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2" stroke-linecap="round">
+        <path d="M15 18l-6-6 6-6"/>
+      </svg>
+    </button>
+  </div>
+
+  <div class="sb-section-label">Menu</div>
+  <nav class="sb-nav">
+    <button class="sb-nav-item active" id="nav-dashboard" onclick="setTab('dashboard')">
+      <span class="sb-nav-icon">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>
+      </span>
+      <span class="sb-nav-label">Dashboard</span>
+      <span class="sb-nav-tooltip">Dashboard</span>
+    </button>
+    <button class="sb-nav-item" id="nav-setup" onclick="setTab('setup')">
+      <span class="sb-nav-icon">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      </span>
+      <span class="sb-nav-label">Employee Setup</span>
+      <span class="sb-nav-tooltip">Employee Setup</span>
+    </button>
+    <button class="sb-nav-item" id="nav-bench" onclick="setTab('bench')">
+      <span class="sb-nav-icon">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      </span>
+      <span class="sb-nav-label">Bench Resources</span>
+      <span class="sb-nav-tooltip">Bench Resources</span>
+    </button>
+  </nav>
+
+  <div class="sb-bottom">
+    <div id="file-status" style="display:none">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#4ade80" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+      <span id="file-status-text"></span>
+    </div>
+    <input type="file" id="alloc-input" accept=".xlsx,.xls" style="display:none" onchange="handleAllocUpload(event)"/>
+    <button id="upload-btn" onclick="document.getElementById('alloc-input').click()">
+      <span class="upload-btn-icon">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+      </span>
+      <span class="upload-btn-text" id="upload-btn-text">Upload Allocations</span>
+    </button>
+
+    <!-- Session divider -->
+    <div style="height:1px;background:rgba(255,255,255,0.07);margin:10px 0"></div>
+    <p style="font-size:10px;color:#475569;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:6px;padding:0 2px" id="session-label">Session</p>
+
+    <!-- Save Session -->
+    <button onclick="saveSession()" id="save-session-btn" style="display:flex;align-items:center;gap:8px;width:100%;padding:9px 10px;border-radius:var(--radius-sm);border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.05);cursor:pointer;color:#94a3b8;font-size:12px;font-weight:500;font-family:inherit;transition:all 0.15s;margin-bottom:6px;white-space:nowrap;overflow:hidden">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="flex-shrink:0"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+      <span class="upload-btn-text">Save Session</span>
+    </button>
+
+    <!-- Load Session -->
+    <input type="file" id="session-input" accept=".json" style="display:none" onchange="loadSession(event)"/>
+    <button onclick="document.getElementById('session-input').click()" style="display:flex;align-items:center;gap:8px;width:100%;padding:9px 10px;border-radius:var(--radius-sm);border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.05);cursor:pointer;color:#94a3b8;font-size:12px;font-weight:500;font-family:inherit;transition:all 0.15s;white-space:nowrap;overflow:hidden">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="flex-shrink:0"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      <span class="upload-btn-text">Load Session</span>
+    </button>
+  </div>
+</aside>
+
+<!-- MAIN -->
+<div id="main">
+  <!-- TOP BAR -->
+  <header id="topbar">
+    <div id="page-title">Dashboard</div>
+    <div style="display:flex;align-items:center;gap:12px;font-size:12px;color:var(--text3)">
+      <span id="save-status" style="display:none;align-items:center;gap:5px;font-size:11px;font-weight:500"></span>
+      <button onclick="showHistory()" style="display:inline-flex;align-items:center;gap:6px;padding:6px 13px;border-radius:50px;border:1px solid var(--border);background:var(--white);cursor:pointer;font-size:12px;font-weight:500;color:var(--text2);font-family:inherit;transition:all 0.15s" title="View all uploaded files">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        History
+        <span id="history-badge" style="display:none;align-items:center;justify-content:center;min-width:17px;height:17px;padding:0 4px;border-radius:9px;background:var(--accent);color:#fff;font-size:10px;font-weight:700"></span>
+      </button>
+      <span id="alloc-summary"></span>
+    </div>
+  </header>
+
+  <!-- FILTER AREA (dashboard only) -->
+  <div id="filter-area" style="display:none">
+    <div class="filter-row">
+      <!-- Employee filter -->
+      <div style="position:relative">
+        <button class="filter-pill" id="fp-emp" onclick="toggleDropdown('emp')">
+          <svg class="date-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          <span id="fp-emp-label">Employee</span>
+          <span class="filter-badge" id="fp-emp-badge" style="display:none"></span>
+          <svg class="chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div class="filter-dropdown" id="dd-emp">
+          <div class="dropdown-search">
+            <div class="dropdown-search-wrap">
+              <svg class="dropdown-search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              <input id="dd-emp-search" placeholder="Search employees…" oninput="renderDropdown('emp')" class="form-input" style="padding-left:32px"/>
+            </div>
+          </div>
+          <div id="dd-emp-ctx" style="display:none;padding:6px 14px;font-size:11px;font-weight:600;color:var(--accent);background:rgba(99,102,241,0.06);border-bottom:1px solid var(--border2)"></div>
+          <div class="dropdown-actions">
+            <button class="dropdown-act-btn" onclick="selectAllDropdown('emp')">Select all</button>
+            <button class="dropdown-act-btn" onclick="clearDropdown('emp')">Clear</button>
+          </div>
+          <div class="dropdown-list" id="dd-emp-list"></div>
+        </div>
+      </div>
+
+      <!-- Role filter -->
+      <div style="position:relative">
+        <button class="filter-pill" id="fp-role" onclick="toggleDropdown('role')">
+          <svg class="date-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg>
+          <span id="fp-role-label">Role</span>
+          <span class="filter-badge" id="fp-role-badge" style="display:none"></span>
+          <svg class="chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div class="filter-dropdown" id="dd-role">
+          <div class="dropdown-search">
+            <div class="dropdown-search-wrap">
+              <svg class="dropdown-search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              <input id="dd-role-search" placeholder="Search roles…" oninput="renderDropdown('role')" class="form-input" style="padding-left:32px"/>
+            </div>
+          </div>
+          <div class="dropdown-actions">
+            <button class="dropdown-act-btn" onclick="selectAllDropdown('role')">Select all</button>
+            <button class="dropdown-act-btn" onclick="clearDropdown('role')">Clear</button>
+          </div>
+          <div class="dropdown-list" id="dd-role-list"></div>
+        </div>
+      </div>
+
+      <!-- Program filter -->
+      <div style="position:relative">
+        <button class="filter-pill" id="fp-prog" onclick="toggleDropdown('prog')">
+          <svg class="date-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+          <span id="fp-prog-label">Program</span>
+          <span class="filter-badge" id="fp-prog-badge" style="display:none"></span>
+          <svg class="chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div class="filter-dropdown" id="dd-prog">
+          <div class="dropdown-search">
+            <div class="dropdown-search-wrap">
+              <svg class="dropdown-search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              <input id="dd-prog-search" placeholder="Search programs…" oninput="renderDropdown('prog')" class="form-input" style="padding-left:32px"/>
+            </div>
+          </div>
+          <div class="dropdown-actions">
+            <button class="dropdown-act-btn" onclick="selectAllDropdown('prog')">Select all</button>
+            <button class="dropdown-act-btn" onclick="clearDropdown('prog')">Clear</button>
+          </div>
+          <div class="dropdown-list" id="dd-prog-list"></div>
+        </div>
+      </div>
+
+      <button id="clear-all-btn" onclick="clearAllFilters()">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        Clear all
+      </button>
+
+      <button id="search-btn" onclick="applySearch()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <span id="search-btn-label">Apply Filters</span>
+      </button>
+    </div>
+    <div class="filter-chips-row" id="active-chips"></div>
+  </div>
+
+  <!-- CONTENT -->
+  <div id="content">
+    <!-- Dashboard -->
+    <div id="tab-dashboard">
+      <div id="no-data" class="empty-state">
+        <div class="empty-icon">📋</div>
+        <div class="empty-title">No allocation data loaded</div>
+        <div class="empty-sub">Click "Upload Allocations" in the sidebar to get started.</div>
+      </div>
+
+      <!-- Name picker step -->
+      <div id="name-picker" style="display:none">
+        <div style="max-width:560px;margin:0 auto">
+          <div style="text-align:center;margin-bottom:28px">
+            <div style="width:52px;height:52px;border-radius:14px;background:rgba(99,102,241,0.1);display:flex;align-items:center;justify-content:center;margin:0 auto 14px">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            </div>
+            <div style="font-family:'Outfit',sans-serif;font-size:20px;font-weight:700;color:var(--text1);margin-bottom:6px">Select your name</div>
+            <div style="font-size:13px;color:var(--text3)">The file has multiple directors. Choose whose team to view.</div>
+          </div>
+          <div id="name-options-list" style="display:flex;flex-direction:column;gap:8px"></div>
+        </div>
+      </div>
+
+      <div id="dashboard-data" style="display:none">
+        <!-- Stats section -->
+        <div id="stats-section">
+          <div class="stats-grid">
+            <div class="stat-card c-green" id="sc-available" onclick="toggleStatusFilter('available')">
+              <div class="stat-card-top">
+                <div class="stat-icon-wrap" style="background:var(--green-bg)">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+                </div>
+                <span class="stat-pct-badge" id="sc-avail-pct" style="background:var(--green-bg);color:var(--green)">0%</span>
+              </div>
+              <div class="stat-number" id="sc-avail-n" style="color:var(--green)">0</div>
+              <div class="stat-label" style="color:var(--green)">Available</div>
+              <div class="stat-bar-wrap" style="background:var(--green-bg)"><div class="stat-bar" id="sc-avail-bar" style="background:var(--green-dot)"></div></div>
+            </div>
+            <div class="stat-card c-amber" id="sc-atcap" onclick="toggleStatusFilter('atCapacity')">
+              <div class="stat-card-top">
+                <div class="stat-icon-wrap" style="background:var(--amber-bg)">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--amber)" stroke-width="2" stroke-linecap="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                </div>
+                <span class="stat-pct-badge" id="sc-cap-pct" style="background:var(--amber-bg);color:var(--amber)">0%</span>
+              </div>
+              <div class="stat-number" id="sc-cap-n" style="color:var(--amber)">0</div>
+              <div class="stat-label" style="color:var(--amber)">At Capacity</div>
+              <div class="stat-bar-wrap" style="background:var(--amber-bg)"><div class="stat-bar" id="sc-cap-bar" style="background:var(--amber-dot)"></div></div>
+            </div>
+            <div class="stat-card c-red" id="sc-over" onclick="toggleStatusFilter('overAllocated')">
+              <div class="stat-card-top">
+                <div class="stat-icon-wrap" style="background:var(--red-bg)">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--red)" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+                </div>
+                <span class="stat-pct-badge" id="sc-over-pct" style="background:var(--red-bg);color:var(--red)">0%</span>
+              </div>
+              <div class="stat-number" id="sc-over-n" style="color:var(--red)">0</div>
+              <div class="stat-label" style="color:var(--red)">Over Allocated</div>
+              <div class="stat-bar-wrap" style="background:var(--red-bg)"><div class="stat-bar" id="sc-over-bar" style="background:var(--red-dot)"></div></div>
+            </div>
+            <!-- 4th card: bench / 100% free -->
+            <div class="stat-card" id="sc-bench" onclick="toggleStatusFilter('bench')" style="cursor:pointer">
+              <div class="stat-card-top">
+                <div class="stat-icon-wrap" style="background:#eef2ff">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6366f1" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="7" r="4"/><path d="M5.5 21a8.38 8.38 0 0 1 13 0"/><line x1="12" y1="14" x2="12" y2="21"/></svg>
+                </div>
+                <span class="stat-pct-badge" id="sc-bench-pct" style="background:#eef2ff;color:#6366f1">0%</span>
+              </div>
+              <div class="stat-number" id="sc-bench-n" style="color:#6366f1">0</div>
+              <div class="stat-label" style="color:#6366f1">100% Free</div>
+              <div class="stat-bar-wrap" style="background:#eef2ff;margin-top:8px"><div class="stat-bar" id="sc-bench-bar" style="background:#6366f1"></div></div>
+            </div>
+          </div>
+          <div class="distribution-bar" id="dist-bar"></div>
+        </div>
+
+        <!-- Table -->
+        <div id="table-section">
+          <div class="table-header">
+            <div>
+              <div class="table-title">Allocation Details</div>
+              <div class="table-meta" id="table-meta">— employees · — records</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:16px">
+              <div class="legend">
+                <div class="legend-item"><div class="legend-dot" style="background:var(--green-dot)"></div>Available</div>
+                <div class="legend-item"><div class="legend-dot" style="background:var(--amber-dot)"></div>At Capacity</div>
+                <div class="legend-item"><div class="legend-dot" style="background:var(--red-dot)"></div>Over Allocated</div>
+                <div class="legend-item"><div class="legend-dot" style="background:#6366f1"></div>100% Free</div>
+              </div>
+              <div style="position:relative" id="export-wrap">
+                <button id="export-btn" onclick="toggleExportMenu()" style="display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:var(--radius-sm);border:1.5px solid var(--border);background:var(--white);cursor:pointer;font-size:12px;font-weight:600;color:var(--text2);font-family:inherit;transition:all 0.15s">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                  Export
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+                </button>
+                <div id="export-menu" style="display:none;position:absolute;top:calc(100% + 6px);right:0;background:var(--white);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow-lg);min-width:180px;z-index:999;overflow:hidden">
+                  <button onclick="exportToExcel()" style="display:flex;align-items:center;gap:10px;width:100%;padding:11px 16px;border:none;background:none;cursor:pointer;font-size:13px;font-family:inherit;color:var(--text1);text-align:left;transition:background 0.1s" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='none'">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18"/></svg>
+                    Export to Excel
+                  </button>
+                  <div style="height:1px;background:var(--border2);margin:0 12px"></div>
+                  <button onclick="exportToPDF()" style="display:flex;align-items:center;gap:10px;width:100%;padding:11px 16px;border:none;background:none;cursor:pointer;font-size:13px;font-family:inherit;color:var(--text1);text-align:left;transition:background 0.1s" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='none'">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                    Export as PDF
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Employee</th>
+                  <th>Project</th>
+                  <th>% Alloc</th>
+                  <th>Duration</th>
+                  <th class="th-cap">Capacity</th>
+                </tr>
+              </thead>
+              <tbody id="table-body"></tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Setup -->
+    <div id="tab-setup" style="display:none">
+      <div id="setup-content">
+
+        <!-- Cloud Database Setup -->
+        <div class="setup-panel" style="margin-bottom:20px;border-color:#c7d2fe">
+          <div class="setup-panel-header">
+            <div>
+              <div class="setup-panel-title" style="color:#4338ca">☁ Cloud Database (Supabase)</div>
+              <div class="setup-panel-sub">Connect to Supabase so your data loads on any browser, any device</div>
+            </div>
+          </div>
+          <div style="padding:20px;border-top:1px solid var(--border2)">
+
+            <!-- Step 1 -->
+            <div style="margin-bottom:16px">
+              <div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:8px">STEP 1 — Create a free Supabase project</div>
+              <a href="https://supabase.com" target="_blank" style="display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:6px;background:#1c1c1c;color:#fff;font-size:12px;font-weight:600;text-decoration:none">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                Open supabase.com
+              </a>
+            </div>
+
+            <!-- Step 2 -->
+            <div style="margin-bottom:16px">
+              <div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:8px">STEP 2 — Run this SQL in your project's SQL Editor</div>
+              <div style="position:relative">
+                <pre id="setup-sql" style="background:#0f172a;color:#e2e8f0;padding:14px 16px;border-radius:8px;font-size:12px;overflow-x:auto;margin:0;line-height:1.6">CREATE TABLE IF NOT EXISTS ru_data (
+  key  text primary key,
+  value jsonb,
+  updated_at timestamptz default now()
+);
+GRANT SELECT, INSERT, UPDATE, DELETE ON ru_data TO anon;
+GRANT SELECT, INSERT, UPDATE, DELETE ON ru_data TO authenticated;
+ALTER TABLE ru_data DISABLE ROW LEVEL SECURITY;</pre>
+                <button onclick="navigator.clipboard.writeText(document.getElementById('setup-sql').textContent)" style="position:absolute;top:8px;right:8px;padding:4px 10px;border-radius:5px;border:1px solid #475569;background:#1e293b;color:#94a3b8;font-size:11px;cursor:pointer">Copy</button>
+              </div>
+            </div>
+
+            <!-- Step 3 -->
+            <div>
+              <div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:10px">STEP 3 — Enter your project URL and anon key (Project Settings → API)</div>
+              <div style="display:grid;gap:10px;max-width:560px">
+                <div>
+                  <label style="font-size:12px;color:var(--text3);display:block;margin-bottom:4px">Project URL</label>
+                  <input id="cloud-url" class="form-input" placeholder="https://xxxx.supabase.co" value="${CLOUD._url||''}" style="width:100%"/>
+                </div>
+                <div>
+                  <label style="font-size:12px;color:var(--text3);display:block;margin-bottom:4px">Anon / Public Key</label>
+                  <input id="cloud-key" class="form-input" type="password" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9…" value="${CLOUD._key||''}" style="width:100%"/>
+                </div>
+                <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+                  <button onclick="testAndSaveCloud()" style="padding:8px 18px;border-radius:6px;border:none;background:var(--accent);color:#fff;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit">Test & Save Connection</button>
+                  <button onclick="clearCloud()" style="padding:8px 14px;border-radius:6px;border:1px solid var(--border);background:var(--white);color:var(--text3);font-size:12px;cursor:pointer;font-family:inherit">Clear</button>
+                  <span id="cloud-status" style="font-size:12px;font-weight:500">${CLOUD.configured()?'<span style=\"color:#16a34a\">✓ Connected</span>':''}</span>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+        <div class="setup-panel">
+          <div class="setup-panel-header">
+            <div>
+              <div class="setup-panel-title">Employee Directory</div>
+              <div class="setup-panel-sub">Saved automatically · Upload once, edit anytime</div>
+            </div>
+            <div class="setup-actions">
+              <input type="file" id="roles-input" accept=".xlsx,.xls" style="display:none" onchange="handleRolesUpload(event)"/>
+              <button class="btn btn-primary" onclick="document.getElementById('roles-input').click()">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                Upload Roles File
+              </button>
+              <button class="btn btn-success" onclick="toggleAddForm()">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                Add Employee
+              </button>
+            </div>
+          </div>
+
+          <div id="add-emp-form">
+            <div style="font-size:12px;font-weight:600;color:var(--green);margin-bottom:10px">New employee</div>
+            <div class="form-row">
+              <div class="form-field wide"><div class="form-label">Full name</div><input class="form-input" id="add-name" placeholder="Full name"/></div>
+              <div class="form-field wide"><div class="form-label">Role</div><input class="form-input" id="add-role" placeholder="e.g. Lead Software Engineer"/></div>
+              <div class="form-field"><div class="form-label">Program</div><input class="form-input" id="add-program" placeholder="e.g. BURQ"/></div>
+              <div style="display:flex;gap:8px;align-items:flex-end;padding-bottom:1px">
+                <button class="btn btn-success" onclick="addEmployee()">Save</button>
+                <button class="btn btn-ghost" onclick="toggleAddForm()">Cancel</button>
+              </div>
+            </div>
+          </div>
+
+          <div style="padding:12px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
+            <span id="emp-count-label" style="font-size:13px;font-weight:500;color:var(--text2)">0 employees</span>
+            <div class="setup-search-wrap">
+              <svg class="setup-search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              <input class="setup-search" id="setup-search" placeholder="Search…" oninput="renderSetupTable()"/>
+            </div>
+          </div>
+
+          <div style="overflow-x:auto">
+            <table class="setup-table">
+              <thead>
+                <tr>
+                  <th style="width:44px">#</th>
+                  <th>Employee Name</th>
+                  <th>Role</th>
+                  <th>Program</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="setup-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Bench Resources Tab ── -->
+    <div id="tab-bench" style="display:none">
+      <!-- Bench filter bar -->
+      <div style="background:var(--white);border:1px solid var(--border);border-radius:var(--radius);padding:14px 18px;margin-bottom:18px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;box-shadow:var(--shadow-sm)">
+        <span style="font-size:12px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px;white-space:nowrap">Filter</span>
+        <div style="position:relative">
+          <button class="filter-pill" id="bfp-role" onclick="toggleBenchDD('brole')">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg>
+            <span id="bfp-role-lbl">Role</span>
+            <span class="filter-badge" id="bfp-role-badge" style="display:none"></span>
+            <svg class="chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+          </button>
+          <div class="filter-dropdown" id="bdd-role">
+            <div class="dropdown-search"><div class="dropdown-search-wrap">
+              <svg class="dropdown-search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              <input id="bdd-role-s" placeholder="Search roles…" oninput="renderBenchDD('brole')" class="form-input" style="padding-left:32px"/>
+            </div></div>
+            <div class="dropdown-actions">
+              <button class="dropdown-act-btn" onclick="benchSelAll('brole')">Select all</button>
+              <button class="dropdown-act-btn" onclick="benchClr('brole')">Clear</button>
+            </div>
+            <div class="dropdown-list" id="bdd-role-list"></div>
+          </div>
+        </div>
+        <div style="position:relative">
+          <button class="filter-pill" id="bfp-prog" onclick="toggleBenchDD('bprog')">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+            <span id="bfp-prog-lbl">Program</span>
+            <span class="filter-badge" id="bfp-prog-badge" style="display:none"></span>
+            <svg class="chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+          </button>
+          <div class="filter-dropdown" id="bdd-prog">
+            <div class="dropdown-search"><div class="dropdown-search-wrap">
+              <svg class="dropdown-search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              <input id="bdd-prog-s" placeholder="Search programs…" oninput="renderBenchDD('bprog')" class="form-input" style="padding-left:32px"/>
+            </div></div>
+            <div class="dropdown-actions">
+              <button class="dropdown-act-btn" onclick="benchSelAll('bprog')">Select all</button>
+              <button class="dropdown-act-btn" onclick="benchClr('bprog')">Clear</button>
+            </div>
+            <div class="dropdown-list" id="bdd-prog-list"></div>
+          </div>
+        </div>
+        <button id="bench-clear-btn" style="display:none;align-items:center;gap:4px;padding:7px 12px;border-radius:50px;border:1px solid #fecaca;background:#fff5f5;color:#dc2626;font-size:12px;cursor:pointer;font-family:inherit" onclick="benchClearAll()">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> Clear all
+        </button>
+      </div>
+
+      <!-- Role breakdown cards -->
+      <div id="bench-cards" style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:18px"></div>
+
+      <!-- Table -->
+      <div style="background:var(--white);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow-sm)">
+        <div style="padding:14px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
+          <div>
+            <div style="font-family:'Outfit',sans-serif;font-size:15px;font-weight:700">Bench Resources</div>
+            <div id="bench-meta" style="font-size:12px;color:var(--text3);margin-top:2px">—</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;padding:5px 14px;background:var(--green-bg);border:1px solid var(--green-border);border-radius:50px">
+            <div style="width:8px;height:8px;border-radius:50%;background:var(--green-dot)"></div>
+            <span style="font-size:12px;font-weight:600;color:var(--green)">100% Available — No Active Allocations</span>
+          </div>
+        </div>
+        <div style="overflow-x:auto">
+          <table style="width:100%;border-collapse:collapse;font-size:13px">
+            <thead>
+              <tr>
+                <th style="padding:11px 16px;text-align:left;font-size:10.5px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px;background:#f8fafc;border-bottom:1px solid var(--border);width:44px">#</th>
+                <th style="padding:11px 16px;text-align:left;font-size:10.5px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px;background:#f8fafc;border-bottom:1px solid var(--border)">Employee Name</th>
+                <th style="padding:11px 16px;text-align:left;font-size:10.5px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px;background:#f8fafc;border-bottom:1px solid var(--border)">Role</th>
+                <th style="padding:11px 16px;text-align:left;font-size:10.5px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px;background:#f8fafc;border-bottom:1px solid var(--border)">Program</th>
+                <th style="padding:11px 16px;text-align:center;font-size:10.5px;font-weight:700;color:var(--green);text-transform:uppercase;letter-spacing:0.5px;background:#f0fdf4;border-bottom:1px solid var(--border)">Availability</th>
+              </tr>
+            </thead>
+            <tbody id="bench-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// ── State ────────────────────────────────────────────────────────────
+const S = {
+  tab: 'dashboard',
+  allocations: [],
+  _rawRows: [],
+  selectedName: '',
+  activeUploadId: null,
+  empRoles: {},
+  fEmpNames: [],
+  fRoles: [],
+  fPrograms: [],
+  fStatus: 'all',
+  uRoles: [],
+  uPrograms: [],
+  sidebarCollapsed: false,
+  openDropdown: null,
+  editingEmp: null,
+};
+
+const CAP = {
+  available:     { label:'Available',      color:'var(--green)', bg:'var(--green-bg)', dot:'var(--green-dot)' },
+  atCapacity:    { label:'At Capacity',    color:'var(--amber)', bg:'var(--amber-bg)', dot:'var(--amber-dot)' },
+  overAllocated: { label:'Over Allocated', color:'var(--red)',   bg:'var(--red-bg)',   dot:'var(--red-dot)'   },
+};
+const CAP_DOT = { available:'#22c55e', atCapacity:'#f59e0b', overAllocated:'#ef4444' };
+const CAP_COLOR = { available:'var(--green)', atCapacity:'var(--amber)', overAllocated:'var(--red)' };
+const CAP_BG = { available:'var(--green-bg)', atCapacity:'var(--amber-bg)', overAllocated:'var(--red-bg)' };
+
+const AVATAR_COLORS = [
+  ['#dbeafe','#1e40af'],['#dcfce7','#166534'],['#fef3c7','#92400e'],
+  ['#fce7f3','#831843'],['#d1fae5','#065f46'],['#fee2e2','#991b1b'],
+  ['#ede9fe','#4c1d95'],['#e0f2fe','#0c4a6e'],
+];
+
+// ── IndexedDB Database ────────────────────────────────────────────────
+// Each file upload is stored as a separate record — nothing is overwritten.
+const DB = {
+  _db: null,
+  async open() {
+    if (this._db) return this._db;
+    return new Promise((resolve, reject) => {
+      const req = indexedDB.open('ResourceUtilDB', 1);
+      req.onerror = () => reject(req.error);
+      req.onsuccess = () => { this._db = req.result; resolve(this._db); };
+      req.onupgradeneeded = e => {
+        const db = e.target.result;
+        if (!db.objectStoreNames.contains('uploads')) {
+          db.createObjectStore('uploads', { keyPath: 'id', autoIncrement: true });
+        }
+        if (!db.objectStoreNames.contains('settings')) {
+          db.createObjectStore('settings', { keyPath: 'key' });
+        }
+      };
+    });
+  },
+  async run(storeName, mode, fn) {
+    const db = await this.open();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(storeName, mode);
+      const store = tx.objectStore(storeName);
+      const req = fn(store);
+      req.onsuccess = () => resolve(req.result);
+      req.onerror  = () => reject(req.error);
+    });
+  },
+  addUpload:    data  => DB.run('uploads',  'readwrite', s => s.add(data)),
+  getUpload:    id    => DB.run('uploads',  'readonly',  s => s.get(id)),
+  deleteUpload: id    => DB.run('uploads',  'readwrite', s => s.delete(id)),
+  getAllUploads: ()   => DB.run('uploads',  'readonly',  s => s.getAll()),
+  setSetting:   (k,v) => DB.run('settings', 'readwrite', s => s.put({key:k, value:v})),
+  getSetting:   k    => DB.run('settings', 'readonly',  s => s.get(k)).then(r => r ? r.value : null),
+};
+
+// ── Supabase Cloud Database ───────────────────────────────────────────
+// When configured, all data reads/writes go to Supabase so any browser
+// can access the same data. Falls back to IndexedDB when not configured.
+//
+// One-time SQL to run in your Supabase SQL Editor:
+// CREATE TABLE IF NOT EXISTS ru_data (
+//   key text primary key,
+//   value jsonb,
+//   updated_at timestamptz default now()
+// );
+// ALTER TABLE ru_data ENABLE ROW LEVEL SECURITY;
+// CREATE POLICY "anon_all" ON ru_data FOR ALL TO anon USING (true) WITH CHECK (true);
+
+const CLOUD = {
+  _url: null, _key: null,
+
+  load() {
+    try {
+      const cfg = JSON.parse(localStorage.getItem('ru_cloud_cfg') || 'null');
+      if (cfg) { this._url = cfg.url; this._key = cfg.key; }
+    } catch {}
+  },
+
+  save(url, key) {
+    this._url = url; this._key = key;
+    try { localStorage.setItem('ru_cloud_cfg', JSON.stringify({url, key})); } catch {}
+  },
+
+  configured() { return !!(this._url && this._key); },
+
+  async _req(path, method = 'GET', body = null) {
+    const headers = {
+      'apikey': this._key,
+      'Authorization': `Bearer ${this._key}`,
+      'Accept': 'application/json',
+    };
+    if (body != null) headers['Content-Type'] = 'application/json';
+    if (method === 'POST' || method === 'PATCH') headers['Prefer'] = 'return=representation';
+    const r = await fetch(`${this._url}/rest/v1/${path}`, {
+      method, headers,
+      body: body != null ? JSON.stringify(body) : undefined,
+    });
+    const txt = await r.text();
+    if (!r.ok) {
+      let msg = txt;
+      try { const j = JSON.parse(txt); msg = j.message || j.hint || j.error || txt; } catch {}
+      throw new Error(msg);
+    }
+    return txt ? JSON.parse(txt) : null;
+  },
+
+  async get(key) {
+    const rows = await this._req(`ru_data?key=eq.${encodeURIComponent(key)}&select=value`);
+    return (rows && rows.length) ? rows[0].value : null;
+  },
+
+  async set(key, value) {
+    // Upsert: try insert, if conflict (duplicate key) update instead
+    await fetch(`${this._url}/rest/v1/ru_data`, {
+      method: 'POST',
+      headers: {
+        'apikey': this._key,
+        'Authorization': `Bearer ${this._key}`,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'Prefer': 'resolution=merge-duplicates,return=minimal',
+      },
+      body: JSON.stringify({ key, value, updated_at: new Date().toISOString() }),
+    }).then(r => { if (!r.ok) return r.text().then(t => { throw new Error(t); }); });
+  },
+
+  async testConnection() {
+    const baseHeaders = {
+      'apikey': this._key,
+      'Authorization': `Bearer ${this._key}`,
+      'Accept': 'application/json',
+    };
+    // Step 1: read test
+    try {
+      const r = await fetch(`${this._url}/rest/v1/ru_data?limit=1`, { headers: baseHeaders });
+      if (r.status === 401) return { ok: false, reason: 'bad_key' };
+      if (r.status === 404) return { ok: false, reason: 'no_table' };
+      if (r.status === 406) return { ok: false, reason: 'no_grant' };
+      if (!r.ok) {
+        const txt = await r.text();
+        if (txt.includes('does not exist')) return { ok: false, reason: 'no_table' };
+        if (txt.includes('permission') || txt.includes('denied')) return { ok: false, reason: 'no_grant' };
+        return { ok: false, reason: 'other', detail: `HTTP ${r.status}: ${txt}` };
+      }
+    } catch(e) { return { ok: false, reason: 'unreachable', detail: e.message }; }
+    // Step 2: write test (upsert)
+    try {
+      const wr = await fetch(`${this._url}/rest/v1/ru_data`, {
+        method: 'POST',
+        headers: { ...baseHeaders, 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates,return=minimal' },
+        body: JSON.stringify({ key: '__conn_test__', value: { ok: true }, updated_at: new Date().toISOString() }),
+      });
+      if (!wr.ok) {
+        const txt = await wr.text();
+        return { ok: false, reason: 'no_write', detail: txt };
+      }
+    } catch(e) { return { ok: false, reason: 'no_write', detail: e.message }; }
+    return { ok: true };
+  },
+};
+CLOUD.load();
+
+// ── Unified storage helpers ───────────────────────────────────────────
+// CLOUD (Supabase) → IndexedDB → fallback chain
+async function cloudSet(key, value) {
+  if (CLOUD.configured()) { try { await CLOUD.set(key, value); return; } catch(e) { console.warn('Cloud write failed:', e); } }
+  try { await DB.setSetting(key, value); } catch {}
+}
+async function cloudGet(key) {
+  if (CLOUD.configured()) { try { const v = await CLOUD.get(key); if (v !== null && v !== undefined) return v; } catch(e) { console.warn('Cloud read failed:', e); } }
+  try { return await DB.getSetting(key); } catch { return null; }
+}
+async function cloudDel(key) {
+  if (CLOUD.configured()) { try { await CLOUD._req(`ru_data?key=eq.${encodeURIComponent(key)}`, 'DELETE'); } catch {} }
+  // IndexedDB has no generic key delete, skip
+}
+
+// ── Roles ─────────────────────────────────────────────────────────────
+async function saveRoles() {
+  await cloudSet('emp_roles', S.empRoles);
+}
+async function loadRoles() {
+  const v = await cloudGet('emp_roles');
+  if (v && typeof v === 'object') S.empRoles = v;
+}
+
+// ── Upload list (metadata without rows) ───────────────────────────────
+async function getUploadList() {
+  const v = await cloudGet('upload_list');
+  return Array.isArray(v) ? v : [];
+}
+async function saveUploadList(list) {
+  await cloudSet('upload_list', list);
+}
+// Rows stored separately to keep upload_list small
+async function saveUploadRows(id, rows) {
+  await cloudSet(`upload_rows_${id}`, rows);
+}
+async function getUploadRows(id) {
+  return cloudGet(`upload_rows_${id}`);
+}
+
+// ── Save status indicator ─────────────────────────────────────────────
+function setSaveStatus(state) {
+  const el = document.getElementById('save-status');
+  if (!el) return;
+  if (state === 'saving') {
+    el.style.display = 'inline-flex'; el.style.color = '#94a3b8'; el.textContent = '⏳ Saving…';
+  } else if (state === 'saved') {
+    el.style.display = 'inline-flex'; el.style.color = '#16a34a'; el.textContent = '✓ Saved';
+    setTimeout(() => { if(el) el.style.display = 'none'; }, 2500);
+  } else { el.style.display = 'none'; }
+}
+
+// ── Upload count badge ────────────────────────────────────────────────
+async function updateHistoryBadge() {
+  try {
+    const list = await getUploadList();
+    const badge = document.getElementById('history-badge');
+    if (badge) { badge.textContent = list.length; badge.style.display = list.length ? 'inline-flex' : 'none'; }
+  } catch {}
+}
+
+// ── History panel ─────────────────────────────────────────────────────
+async function showHistory() {
+  let list = await getUploadList();
+  list = list.slice().sort((a,b) => b.uploadedAt.localeCompare(a.uploadedAt));
+
+  const panel = document.getElementById('history-panel');
+  const ul    = document.getElementById('history-list');
+  if (!panel) return;
+
+  if (!list.length) {
+    ul.innerHTML = `<div style="padding:32px;text-align:center;color:var(--text3);font-size:13px">
+      No uploads saved yet. Upload an allocations file to get started.</div>`;
+  } else {
+    ul.innerHTML = list.map(u => {
+      const isActive = u.id === S.activeUploadId;
+      const dt = new Date(u.uploadedAt);
+      const ds = dt.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});
+      const ts = dt.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+      return `<div style="display:flex;align-items:center;gap:12px;padding:14px 20px;border-bottom:1px solid var(--border2);${isActive?'background:#f0f4ff;':''}">
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:3px;flex-wrap:wrap">
+            <span style="font-size:13px;font-weight:600;color:var(--text1)">${escHtml(u.fileName)}</span>
+            ${isActive?`<span style="padding:2px 8px;background:var(--accent);color:#fff;border-radius:20px;font-size:10px;font-weight:700">Active</span>`:''}
+          </div>
+          <div style="font-size:12px;color:var(--text3)">${ds} ${ts}&nbsp;·&nbsp;${escHtml(u.selectedName||'—')}&nbsp;·&nbsp;${u.rowCount} records</div>
+        </div>
+        <div style="display:flex;gap:6px;flex-shrink:0">
+          ${!isActive?`<button onclick="loadUploadById('${u.id}')" style="padding:5px 12px;border-radius:6px;border:1px solid var(--border);background:var(--white);color:var(--text2);font-size:12px;cursor:pointer;font-family:inherit">Load</button>`:''}
+          <button onclick="confirmDeleteUpload('${u.id}')" style="padding:5px 10px;border-radius:6px;border:1px solid #fecaca;background:#fff5f5;color:#dc2626;font-size:12px;cursor:pointer;font-family:inherit">✕</button>
+        </div>
+      </div>`;
+    }).join('');
+  }
+  panel.style.display = 'flex';
+  const ov = document.getElementById('history-overlay');
+  if (ov) ov.style.display = 'block';
+}
+
+function closeHistory() {
+  const p = document.getElementById('history-panel');
+  const o = document.getElementById('history-overlay');
+  if (p) p.style.display = 'none';
+  if (o) o.style.display = 'none';
+}
+
+async function loadUploadById(id) {
+  try {
+    const list  = await getUploadList();
+    const meta  = list.find(u => u.id === id);
+    if (!meta) return;
+    const rows  = await getUploadRows(id);
+    if (!rows)  { alert('Row data not found for this upload.'); return; }
+    S._rawRows       = rows;
+    S.selectedName   = meta.selectedName || '';
+    S.activeUploadId = id;
+    S.allocations    = S._rawRows.filter(r => r.dirName === S.selectedName);
+    S.fEmpNames      = [];
+    await cloudSet('active_upload_id', id);
+    closeHistory();
+    applyUIAfterLoad(meta.fileName);
+  } catch(err) { alert('Could not load upload: ' + err.message); }
+}
+
+async function confirmDeleteUpload(id) {
+  const list = await getUploadList();
+  if (list.length <= 1) { alert('Cannot delete the only upload.'); return; }
+  if (!confirm('Delete this upload? This cannot be undone.')) return;
+  const newList = list.filter(u => u.id !== id);
+  await saveUploadList(newList);
+  await cloudDel(`upload_rows_${id}`);
+  if (S.activeUploadId === id) {
+    const next = newList.sort((a,b) => b.uploadedAt.localeCompare(a.uploadedAt))[0];
+    if (next) await loadUploadById(next.id);
+  }
+  showHistory();
+  updateHistoryBadge();
+}
+
+function applyUIAfterLoad(fileName) {
+  document.getElementById('name-picker').style.display  = 'none';
+  document.getElementById('filter-area').style.display  = 'block';
+  document.getElementById('file-status').style.display  = 'flex';
+  document.getElementById('file-status-text').textContent = fileName.length>22 ? fileName.slice(0,22)+'…' : fileName;
+  document.getElementById('upload-btn-text').textContent  = 'Re-upload';
+  document.getElementById('alloc-summary').innerHTML =
+    `<span style="color:var(--accent);font-weight:600">${escHtml(S.selectedName)}</span>
+     &nbsp;·&nbsp; ${S.allocations.length} records
+     &nbsp;<button onclick="showNamePicker()" style="font-size:11px;color:var(--text3);background:none;border:none;cursor:pointer;text-decoration:underline;padding:0">change</button>`;
+  setTab('dashboard');
+  refreshDropdownOptions(); updateAllPills(); renderChips(); renderDashboard();
+  updateHistoryBadge();
+}
+
+// ── Cloud (Supabase) setup ────────────────────────────────────────────
+async function testAndSaveCloud() {
+  const url = document.getElementById('cloud-url').value.trim().replace(/\/$/, '');
+  const key = document.getElementById('cloud-key').value.trim();
+  const statusEl = document.getElementById('cloud-status');
+  if (!url || !key) { statusEl.innerHTML = '⚠ Enter both URL and key.'; statusEl.style.color='#dc2626'; return; }
+  statusEl.innerHTML = '⏳ Testing connection…'; statusEl.style.color='#94a3b8';
+  CLOUD.save(url, key);
+  const result = await CLOUD.testConnection();
+  if (result.ok) {
+    statusEl.innerHTML = '✓ Connected — data will now sync across all browsers.'; statusEl.style.color='#16a34a';
+  } else {
+    const msgs = {
+      bad_key:     '✗ <strong>Invalid API key.</strong> Use the <em>anon / public</em> key from Project Settings → API.',
+      bad_url:     '✗ <strong>Project URL not found.</strong> Should be <code>https://xxxx.supabase.co</code>.',
+      unreachable: `✗ <strong>Cannot reach Supabase.</strong> ${result.detail || 'Check the URL.'}`,
+      no_table:    '✗ <strong>Table <code>ru_data</code> not found.</strong> Run the SQL from Step 2 in your Supabase SQL Editor.',
+      no_grant:    '✗ <strong>Permission denied.</strong> Run in SQL Editor: <code>GRANT SELECT, INSERT, UPDATE, DELETE ON ru_data TO anon;</code>',
+      no_write:    `✗ <strong>Read works but write is blocked.</strong> Run: <code>GRANT INSERT, UPDATE, DELETE ON ru_data TO anon;</code>`,
+      other:       `✗ <strong>Error:</strong> ${result.detail || 'Unknown error'}`,
+    };
+    statusEl.innerHTML = msgs[result.reason] || msgs.other;
+    statusEl.style.color = '#dc2626';
+  }
+}
+
+function clearCloud() {
+  if (!confirm('Remove cloud connection? Data will fall back to this browser only.')) return;
+  CLOUD._url = null; CLOUD._key = null;
+  try { localStorage.removeItem('ru_cloud_cfg'); } catch {}
+  document.getElementById('cloud-url').value = '';
+  document.getElementById('cloud-key').value = '';
+  document.getElementById('cloud-status').textContent = 'Cloud connection removed.'; 
+  document.getElementById('cloud-status').style.color = '#94a3b8';
+}
+
+function setSaveStatus(state) {
+  const el = document.getElementById('save-status');
+  if (!el) return;
+  if (state === 'saving') {
+    el.style.display = 'inline-flex'; el.style.color = '#94a3b8';
+    el.textContent = '⏳ Saving…';
+  } else if (state === 'saved') {
+    el.style.display = 'inline-flex'; el.style.color = '#16a34a';
+    el.textContent = '✓ Saved';
+    setTimeout(() => { if(el) el.style.display='none'; }, 2500);
+  } else { el.style.display = 'none'; }
+}
+
+// History panel
+async function showHistory() {
+  let uploads;
+  try { uploads = await DB.getAllUploads(); } catch { uploads = []; }
+  uploads.sort((a, b) => b.uploadedAt.localeCompare(a.uploadedAt));
+
+  const panel = document.getElementById('history-panel');
+  const list  = document.getElementById('history-list');
+
+  if (!uploads.length) {
+    list.innerHTML = `<div style="padding:32px;text-align:center;color:var(--text3);font-size:13px">
+      No uploads saved yet. Upload an allocations file to get started.</div>`;
+  } else {
+    list.innerHTML = uploads.map(u => {
+      const isActive = u.id === S.activeUploadId;
+      const dt = new Date(u.uploadedAt);
+      const dateStr = dt.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});
+      const timeStr = dt.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+      return `<div style="display:flex;align-items:center;gap:12px;padding:14px 20px;border-bottom:1px solid var(--border);${isActive?'background:#eff6ff;':''}" id="hist-row-${u.id}">
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:3px">
+            <span style="font-size:13px;font-weight:600;color:var(--text1)">${escHtml(u.fileName)}</span>
+            ${isActive?`<span style="padding:2px 8px;background:var(--accent);color:#fff;border-radius:20px;font-size:10px;font-weight:700">Active</span>`:''}
+          </div>
+          <div style="font-size:12px;color:var(--text3)">${dateStr} ${timeStr} &nbsp;·&nbsp; ${escHtml(u.selectedName||'—')} &nbsp;·&nbsp; ${u.rowCount} records</div>
+        </div>
+        <div style="display:flex;gap:6px;flex-shrink:0">
+          ${!isActive?`<button onclick="loadUploadById(${u.id})" style="padding:5px 12px;border-radius:6px;border:1px solid var(--border);background:var(--white);color:var(--text2);font-size:12px;cursor:pointer;font-family:inherit">Load</button>`:''}
+          <button onclick="confirmDeleteUpload(${u.id})" style="padding:5px 10px;border-radius:6px;border:1px solid #fecaca;background:#fff5f5;color:#dc2626;font-size:12px;cursor:pointer;font-family:inherit">✕</button>
+        </div>
+      </div>`;
+    }).join('');
+  }
+  panel.style.display = 'flex';
+  document.getElementById('history-overlay').style.display = 'block';
+}
+
+function closeHistory() {
+  document.getElementById('history-panel').style.display = 'none';
+  document.getElementById('history-overlay').style.display = 'none';
+}
+
+async function loadUploadById(id) {
+  try {
+    const upload = await DB.getUpload(id);
+    if (!upload) return;
+    S._rawRows       = upload.rows;
+    S.selectedName   = upload.selectedName || '';
+    S.activeUploadId = upload.id;
+    S.allocations    = S._rawRows.filter(r => r.dirName === S.selectedName);
+    S.fEmpNames      = [];
+    await DB.setSetting('activeUploadId', S.activeUploadId);
+    closeHistory();
+    applyUIAfterLoad(upload.fileName);
+  } catch(err) { alert('Could not load: ' + err.message); }
+}
+
+async function confirmDeleteUpload(id) {
+  const uploads = await DB.getAllUploads();
+  if (uploads.length <= 1) { alert('Cannot delete the only upload.'); return; }
+  if (!confirm('Delete this upload? This cannot be undone.')) return;
+  await DB.deleteUpload(id);
+  if (S.activeUploadId === id) {
+    // Switch to most recent remaining
+    const remaining = uploads.filter(u => u.id !== id).sort((a,b)=>b.uploadedAt.localeCompare(a.uploadedAt));
+    if (remaining.length) await loadUploadById(remaining[0].id);
+  }
+  showHistory();
+  updateHistoryBadge();
+}
+
+async function updateHistoryBadge() {
+  try {
+    const uploads = await DB.getAllUploads();
+    const badge = document.getElementById('history-badge');
+    if (badge) { badge.textContent = uploads.length; badge.style.display = uploads.length ? 'inline-flex' : 'none'; }
+  } catch {}
+}
+
+function applyUIAfterLoad(fileName) {
+  document.getElementById('name-picker').style.display  = 'none';
+  document.getElementById('filter-area').style.display  = 'block';
+  document.getElementById('file-status').style.display  = 'flex';
+  document.getElementById('file-status-text').textContent = fileName.length > 22 ? fileName.slice(0,22)+'…' : fileName;
+  document.getElementById('upload-btn-text').textContent  = 'Re-upload';
+  document.getElementById('alloc-summary').innerHTML =
+    `<span style="color:var(--accent);font-weight:600">${escHtml(S.selectedName)}</span>
+     &nbsp;·&nbsp; ${S.allocations.length} records
+     &nbsp;<button onclick="showNamePicker()" style="font-size:11px;color:var(--text3);background:none;border:none;cursor:pointer;text-decoration:underline;padding:0">change</button>`;
+  refreshDropdownOptions(); updateAllPills(); renderChips(); renderDashboard();
+  updateHistoryBadge();
+}
+
+// ── Helpers ──────────────────────────────────────────────────────────
+function getStatus(t) {
+  if (t > 100) return 'overAllocated';
+  if (t >= 80) return 'atCapacity';
+  return 'available';
+}
+function fmtDate(v) {
+  if (!v) return '—';
+  if (v instanceof Date) return v.toISOString().slice(0,10);
+  const s = String(v);
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0,10);
+  if (!isNaN(Number(s))) try { return new Date((Number(s)-25569)*86400000).toISOString().slice(0,10); } catch {}
+  return s.slice(0,10);
+}
+function escHtml(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function initials(name) {
+  return name.split(' ').slice(0,2).map(w => w[0]||'').join('').toUpperCase();
+}
+
+// ── Sidebar ──────────────────────────────────────────────────────────
+function toggleSidebar() {
+  S.sidebarCollapsed = !S.sidebarCollapsed;
+  document.getElementById('sidebar').classList.toggle('collapsed', S.sidebarCollapsed);
+}
+
+// ── Tab ──────────────────────────────────────────────────────────────
+function setTab(tab) {
+  S.tab = tab;
+  document.getElementById('tab-dashboard').style.display = tab==='dashboard' ? 'block' : 'none';
+  document.getElementById('tab-setup').style.display     = tab==='setup'     ? 'block' : 'none';
+  document.getElementById('tab-bench').style.display     = tab==='bench'     ? 'block' : 'none';
+  document.getElementById('filter-area').style.display   = tab==='dashboard' && S.allocations.length ? 'block' : 'none';
+  const titles = {dashboard:'Dashboard', setup:'Employee Setup', bench:'Bench Resources'};
+  document.getElementById('page-title').textContent = titles[tab]||tab;
+  document.getElementById('nav-dashboard').classList.toggle('active', tab==='dashboard');
+  document.getElementById('nav-setup').classList.toggle('active',     tab==='setup');
+  document.getElementById('nav-bench').classList.toggle('active',     tab==='bench');
+  if (tab==='setup') renderSetupTable();
+  if (tab==='bench') { renderBenchDD('brole'); renderBenchDD('bprog'); renderBench(); }
+}
+
+// ── File uploads ─────────────────────────────────────────────────────
+async function handleAllocUpload(e) {
+  const file = e.target.files[0]; if(!file) return;
+  const fileName = file.name;
+  const reader = new FileReader();
+  reader.onload = async evt => {
+    try {
+      const wb = XLSX.read(new Uint8Array(evt.target.result), {type:'array', cellDates:true});
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const raw = XLSX.utils.sheet_to_json(ws, {defval:''});
+      const rows = raw.map(r => ({
+        empName:     String(r['Emp Name']||r['Emp_Name']||'').trim(),
+        project:     String(r['Project Name']||r['Project_Name']||'').trim(),
+        projectId:   String(r['Project ID']||r['Project_ID']||''),
+        alloc:       parseFloat(r['Alloc']||0),
+        startDate:   fmtDate(r['Start Date']||r['Start_Date']),
+        endDate:     fmtDate(r['End Date']||r['End_Date']),
+        allocStatus: String(r['Alloc.Status']||r['Alloc_Status']||'').trim(),
+        dirName:     String(r['Name']||'').trim(),
+      })).filter(r => r.empName && r.empName !== 'Emp Name');
+
+      setSaveStatus('saving');
+      // Generate a unique ID for this upload
+      const uploadId = `up_${Date.now()}`;
+      const meta = { id: uploadId, uploadedAt: new Date().toISOString(), fileName, selectedName: '', rowCount: rows.length };
+
+      // Save rows separately (can be large), then update the metadata list
+      await saveUploadRows(uploadId, rows);
+      const list = await getUploadList();
+      list.push(meta);
+      await saveUploadList(list);
+      setSaveStatus('saved');
+
+      S._rawRows       = rows;
+      S.activeUploadId = uploadId;
+      updateHistoryBadge();
+
+      document.getElementById('file-status').style.display = 'flex';
+      document.getElementById('file-status-text').textContent = fileName.length>22 ? fileName.slice(0,22)+'…' : fileName;
+      document.getElementById('upload-btn-text').textContent = 'Re-upload';
+      showNamePicker();
+    } catch(err){ alert('Error reading file: '+err.message); }
+  };
+  reader.readAsArrayBuffer(file);
+  e.target.value = '';
+}
+
+function handleRolesUpload(e) {
+  const file = e.target.files[0]; if(!file) return;
+  const reader = new FileReader();
+  reader.onload = evt => {
+    try {
+      const wb = XLSX.read(new Uint8Array(evt.target.result), {type:'array'});
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const raw = XLSX.utils.sheet_to_json(ws, {defval:''});
+      const map = {};
+      raw.forEach(r => {
+        const n = String(r['Employee Name']||'').trim();
+        if(n) map[n] = {role:String(r['Role']||'').trim(), program:String(r['Program']||'').trim()};
+      });
+      S.empRoles = map;
+      saveRoles();
+      refreshDropdownOptions();
+      renderSetupTable();
+      renderDashboard();
+    } catch {}
+  };
+  reader.readAsArrayBuffer(file);
+  e.target.value = '';
+}
+
+// ── Name picker ───────────────────────────────────────────────────────
+function showNamePicker() {
+  setTab('dashboard');
+  const names = [...new Set(
+    S._rawRows.map(r => r.dirName).filter(n => n && n !== 'Name')
+  )].sort();
+
+  document.getElementById('no-data').style.display = 'none';
+  document.getElementById('dashboard-data').style.display = 'none';
+  document.getElementById('filter-area').style.display = 'none';
+  document.getElementById('name-picker').style.display = 'block';
+
+  const list = document.getElementById('name-options-list');
+  list.innerHTML = names.map(n => {
+    const ini = n.split(' ').slice(0,2).map(w=>w[0]||'').join('').toUpperCase();
+    const isActive = n === S.selectedName;
+    return `<button class="name-opt-btn${isActive?' active':''}" onclick="applyNameFilter('${escHtml(n).replace(/'/g,"\\'")}')">
+      <div class="name-opt-avatar">${escHtml(ini)}</div>
+      <div class="name-opt-text">
+        <div class="name-opt-name">${escHtml(n)}</div>
+        <div class="name-opt-count">${S._rawRows.filter(r=>r.dirName===n).length} records</div>
+      </div>
+      ${isActive ? '<div class="name-opt-check">✓</div>' : ''}
+    </button>`;
+  }).join('');
+}
+
+async function applyNameFilter(name) {
+  S.selectedName = name;
+  S.allocations  = S._rawRows.filter(r => r.dirName === name);
+  S.fEmpNames    = [];
+  // Update the upload metadata in the list with the chosen name
+  try {
+    const list = await getUploadList();
+    const entry = list.find(u => u.id === S.activeUploadId);
+    if (entry) { entry.selectedName = name; await saveUploadList(list); }
+    await cloudSet('active_upload_id', S.activeUploadId);
+  } catch {}
+  applyUIAfterLoad(document.getElementById('file-status-text').textContent || name);
+}
+
+// Case-insensitive lookup: handles mismatches like "Atib baqai" vs "Atib Baqai"
+function getEmpInfo(name) {
+  if (S.empRoles[name]) return S.empRoles[name];
+  const norm = name.toLowerCase().trim();
+  for (const [k, v] of Object.entries(S.empRoles)) {
+    if (k.toLowerCase().trim() === norm) return v;
+  }
+  return {};
+}
+
+function getEmpCapacity() {
+  const cap = {};
+  S.allocations.filter(r => r.allocStatus==='Allocated').forEach(r => {
+    cap[r.empName] = (cap[r.empName]||0) + r.alloc;
+  });
+  return cap;
+}
+
+function getFilteredData() {
+  const cap = getEmpCapacity();
+  const allocatedSet = new Set(
+    S.allocations.filter(r => r.allocStatus === 'Allocated').map(r => r.empName.toLowerCase().trim())
+  );
+
+  // ── Allocated employees ──
+  const allocRows = S.allocations.filter(r => {
+    if (r.allocStatus !== 'Allocated') return false;
+    const info = getEmpInfo(r.empName);
+    return (S.fEmpNames.length === 0 || S.fEmpNames.includes(r.empName))
+        && (S.fRoles.length    === 0 || S.fRoles.includes(info.role || ''))
+        && (S.fPrograms.length === 0 || S.fPrograms.includes(info.program || ''));
+  });
+  const groups = {};
+  allocRows.forEach(r => { if (!groups[r.empName]) groups[r.empName] = []; groups[r.empName].push(r); });
+  let allocEmpData = Object.entries(groups).map(([empName, empRows]) => {
+    const totalAlloc = Math.round(cap[empName] || 0);
+    const status = getStatus(totalAlloc);
+    const info = getEmpInfo(empName);
+    return { empName, rows: empRows, totalAlloc, status, role: info.role||'—', program: info.program||'', isBench: false };
+  }).sort((a, b) => a.empName.localeCompare(b.empName));
+
+  if (S.fStatus === 'bench') allocEmpData = [];
+  else if (S.fStatus !== 'all') allocEmpData = allocEmpData.filter(e => e.status === S.fStatus);
+
+  // ── Bench employees (in roles file, no active allocations) ──
+  let benchEmpData = [];
+  if (S.fStatus === 'all' || S.fStatus === 'bench') {
+    benchEmpData = Object.entries(S.empRoles)
+      .filter(([name, info]) => {
+        if (allocatedSet.has(name.toLowerCase().trim())) return false;
+        return (S.fEmpNames.length === 0 || S.fEmpNames.includes(name))
+            && (S.fRoles.length    === 0 || S.fRoles.includes(info.role || ''))
+            && (S.fPrograms.length === 0 || S.fPrograms.includes(info.program || ''));
+      })
+      .map(([name, info]) => ({
+        empName: name, rows: [], totalAlloc: 0, status: 'bench',
+        role: info.role||'—', program: info.program||'', isBench: true,
+      }))
+      .sort((a, b) => a.empName.localeCompare(b.empName));
+  }
+
+  const empData = [...allocEmpData, ...benchEmpData];
+  const rows = allocEmpData.flatMap(e => e.rows);
+  return { rows, empData };
+}
+
+// Context-aware cascading dropdown options:
+// Employee list narrows based on selected roles + programs.
+// Role list narrows based on selected employees + programs.
+// Program list narrows based on selected employees + roles.
+function getDropdownOptions() {
+  const allocEmps = [...new Set(
+    S.allocations.filter(r => r.allocStatus==='Allocated').map(r => r.empName)
+  )];
+  const infoOf = {};
+  allocEmps.forEach(n => { infoOf[n] = getEmpInfo(n); });
+
+  const empNames = allocEmps.filter(n => {
+    const info = infoOf[n];
+    const roleOk = S.fRoles.length    === 0 || S.fRoles.includes(info.role    || '');
+    const progOk = S.fPrograms.length === 0 || S.fPrograms.includes(info.program || '');
+    return roleOk && progOk;
+  }).sort();
+
+  const roles = [...new Set(
+    allocEmps.filter(n => {
+      const info = infoOf[n];
+      const empOk  = S.fEmpNames.length  === 0 || S.fEmpNames.includes(n);
+      const progOk = S.fPrograms.length  === 0 || S.fPrograms.includes(info.program || '');
+      return empOk && progOk;
+    }).map(n => infoOf[n].role).filter(Boolean)
+  )].sort();
+
+  const programs = [...new Set(
+    allocEmps.filter(n => {
+      const info = infoOf[n];
+      const empOk  = S.fEmpNames.length === 0 || S.fEmpNames.includes(n);
+      const roleOk = S.fRoles.length    === 0 || S.fRoles.includes(info.role || '');
+      return empOk && roleOk;
+    }).map(n => infoOf[n].program).filter(Boolean)
+  )].sort();
+
+  return {empNames, roles, programs};
+}
+
+// ── Dashboard render ─────────────────────────────────────────────────
+function renderDashboard() {
+  if(!S.allocations.length) {
+    document.getElementById('no-data').style.display = '';
+    document.getElementById('dashboard-data').style.display = 'none';
+    return;
+  }
+  document.getElementById('no-data').style.display = 'none';
+  document.getElementById('dashboard-data').style.display = '';
+  const {rows, empData} = getFilteredData();
+  renderStats(empData);
+  renderTable(empData, rows.length);
+  updateSummary(empData.length, rows.length);
+}
+
+
+function renderStats(empData) {
+  // Compute all counts independently of status filter so cards always show correct totals
+  const cap = getEmpCapacity();
+  const allocatedSet = new Set(
+    S.allocations.filter(r => r.allocStatus === 'Allocated').map(r => r.empName.toLowerCase().trim())
+  );
+  const allAllocEmps = [...new Set(
+    S.allocations.filter(r => {
+      if (r.allocStatus !== 'Allocated') return false;
+      const info = getEmpInfo(r.empName);
+      return (S.fEmpNames.length === 0 || S.fEmpNames.includes(r.empName))
+          && (S.fRoles.length    === 0 || S.fRoles.includes(info.role || ''))
+          && (S.fPrograms.length === 0 || S.fPrograms.includes(info.program || ''));
+    }).map(r => r.empName)
+  )];
+  const avail = allAllocEmps.filter(n => getStatus(Math.round(cap[n]||0)) === 'available').length;
+  const atCap = allAllocEmps.filter(n => getStatus(Math.round(cap[n]||0)) === 'atCapacity').length;
+  const over  = allAllocEmps.filter(n => getStatus(Math.round(cap[n]||0)) === 'overAllocated').length;
+  const bench = Object.entries(S.empRoles).filter(([name, info]) => {
+    if (allocatedSet.has(name.toLowerCase().trim())) return false;
+    return (S.fEmpNames.length === 0 || S.fEmpNames.includes(name))
+        && (S.fRoles.length    === 0 || S.fRoles.includes(info.role || ''))
+        && (S.fPrograms.length === 0 || S.fPrograms.includes(info.program || ''));
+  }).length;
+  const total = avail + atCap + over + bench || 1;
+  const pA = Math.round(avail/total*100), pC = Math.round(atCap/total*100),
+        pO = Math.round(over/total*100),  pB = Math.round(bench/total*100);
+
+  document.getElementById('sc-avail-n').textContent   = avail;
+  document.getElementById('sc-cap-n').textContent     = atCap;
+  document.getElementById('sc-over-n').textContent    = over;
+  document.getElementById('sc-bench-n').textContent   = bench;
+  document.getElementById('sc-avail-pct').textContent = pA+'%';
+  document.getElementById('sc-cap-pct').textContent   = pC+'%';
+  document.getElementById('sc-over-pct').textContent  = pO+'%';
+  document.getElementById('sc-bench-pct').textContent = pB+'%';
+  document.getElementById('sc-avail-bar').style.width = pA+'%';
+  document.getElementById('sc-cap-bar').style.width   = pC+'%';
+  document.getElementById('sc-over-bar').style.width  = pO+'%';
+  document.getElementById('sc-bench-bar').style.width = pB+'%';
+
+  // Active card states
+  document.getElementById('sc-available').classList.toggle('active', S.fStatus === 'available');
+  document.getElementById('sc-atcap').classList.toggle('active',     S.fStatus === 'atCapacity');
+  document.getElementById('sc-over').classList.toggle('active',      S.fStatus === 'overAllocated');
+  const benchCard = document.getElementById('sc-bench');
+  const benchActive = S.fStatus === 'bench';
+  benchCard.style.background   = benchActive ? '#eef2ff' : '';
+  benchCard.style.borderColor  = benchActive ? '#c7d2fe' : '';
+  benchCard.style.borderWidth  = benchActive ? '2px'     : '';
+
+  // Distribution bar
+  const dist = document.getElementById('dist-bar');
+  dist.innerHTML = '';
+  [[avail,'#22c55e','Available'],[atCap,'#f59e0b','At Capacity'],[over,'#ef4444','Over Allocated'],[bench,'#6366f1','100% Free']]
+    .filter(([c]) => c > 0).forEach(([c, col, lbl]) => {
+      const seg = document.createElement('div');
+      seg.className = 'dist-segment';
+      seg.style.cssText = `width:${(c/(avail+atCap+over+bench))*100}%;background:${col}`;
+      seg.title = `${lbl}: ${c}`;
+      dist.appendChild(seg);
+    });
+}
+
+function renderTable(empData, totalRecords) {
+  document.getElementById('table-meta').textContent = `${empData.length} employee${empData.length!==1?'s':''} · ${totalRecords} active record${totalRecords!==1?'s':''}`;
+  const tbody = document.getElementById('table-body');
+  if(!empData.length) {
+    tbody.innerHTML = '<tr class="no-data-row"><td colspan="5">No results match the current filters.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = empData.map(({empName, rows, totalAlloc, status, role, program, isBench}, empIdx) => {
+    const [avBg, avTx] = AVATAR_COLORS[empIdx % AVATAR_COLORS.length];
+    const ini = escHtml(initials(empName));
+    const empTdInner = `<div class="emp-inner">
+      <div class="emp-avatar" style="background:${avBg};color:${avTx}">${ini}</div>
+      <div>
+        <div class="emp-name">${escHtml(empName)}</div>
+        <div class="emp-role">${escHtml(role)}</div>
+        ${program?`<span class="prog-badge">${escHtml(program)}</span>`:''}
+      </div>
+    </div>`;
+
+    // ── Bench employee: single row, no projects ──
+    if (isBench) {
+      return `<tr>
+        <td class="emp-td" style="border-bottom:2px solid var(--border)">${empTdInner}</td>
+        <td colspan="3" style="padding:14px 18px;border-bottom:2px solid var(--border);color:var(--text3);font-style:italic;font-size:13px">
+          No active project allocations
+        </td>
+        <td class="cap-td" style="background:#eef2ff;border-left:3px solid #6366f1;border-bottom:2px solid var(--border);text-align:center;vertical-align:middle;padding:16px 18px;min-width:130px">
+          <div class="cap-inner">
+            <div class="cap-label" style="color:#4338ca">100% Free</div>
+            <div class="cap-pct" style="color:#4338ca">0%</div>
+            <div class="cap-bar-wrap" style="background:#c7d2fe22"><div class="cap-bar" style="width:0%;background:#6366f1"></div></div>
+            <div class="cap-projects" style="color:#6366f1;opacity:0.7">No projects</div>
+          </div>
+        </td>
+      </tr>`;
+    }
+
+    // ── Allocated employee: multiple rows with rowspan ──
+    const dotColor = CAP_DOT[status], color = CAP_COLOR[status], bgColor = CAP_BG[status];
+    const rowCount = rows.length;
+    const lastBorder = 'border-bottom:2px solid var(--border)';
+    const empTd = `<td class="emp-td" rowspan="${rowCount}">${empTdInner}</td>`;
+    const capTd = `<td class="cap-td" rowspan="${rowCount}" style="background:${bgColor};border-left-color:${dotColor};${lastBorder}">
+      <div class="cap-inner">
+        <div class="cap-label" style="color:${color}">${CAP[status].label}</div>
+        <div class="cap-pct" style="color:${color}">${totalAlloc}%</div>
+        <div class="cap-bar-wrap" style="background:${dotColor}22">
+          <div class="cap-bar" style="width:${Math.min(totalAlloc,100)}%;background:${dotColor}"></div>
+        </div>
+        <div class="cap-projects" style="color:${color}">${rowCount} project${rowCount!==1?'s':''}</div>
+      </div>
+    </td>`;
+
+    return rows.map((row, rIdx) => {
+      const isLast = rIdx === rowCount-1;
+      const cellBorder = isLast ? lastBorder : '';
+      const allocColor = CAP_DOT[getStatus(row.alloc)];
+      return `<tr>
+        ${rIdx===0?empTd:''}
+        <td class="proj-td" style="${cellBorder}">
+          <div class="proj-name" title="${escHtml(row.project)}">${escHtml(row.project)}</div>
+          <div class="proj-id">ID · ${escHtml(row.projectId)}</div>
+        </td>
+        <td class="alloc-td" style="${cellBorder}">
+          <div class="alloc-row">
+            <div class="alloc-track"><div class="alloc-fill" style="width:${Math.min(row.alloc,100)}%;background:${allocColor}"></div></div>
+            <span class="alloc-pct" style="color:${allocColor}">${row.alloc}%</span>
+          </div>
+        </td>
+        <td class="date-td" style="${cellBorder}">
+          <div class="date-row">
+            <svg class="date-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+            <div>
+              <div class="date-start">${escHtml(row.startDate)}</div>
+              <div class="date-end">→ ${escHtml(row.endDate)}</div>
+            </div>
+          </div>
+        </td>
+        ${rIdx===0?capTd:''}
+      </tr>`;
+    }).join('');
+  }).join('');
+}
+
+function updateSummary(empCount, recCount) {
+  document.getElementById('alloc-summary').textContent = empCount
+    ? `${empCount} employee${empCount!==1?'s':''} · ${recCount} records`
+    : '';
+}
+
+// ── Filter logic ─────────────────────────────────────────────────────
+function toggleStatusFilter(status) {
+  S.fStatus = S.fStatus===status ? 'all' : status;
+  renderDashboard();
+}
+
+function refreshDropdownOptions() {
+  ['emp','role','prog'].forEach(t => renderDropdown(t));
+}
+
+function renderDropdown(type) {
+  const {empNames, roles, programs} = getDropdownOptions();
+  const opts   = {emp:empNames, role:roles, prog:programs}[type];
+  const sel    = {emp:S.fEmpNames, role:S.fRoles, prog:S.fPrograms}[type];
+  const srcId  = {emp:'dd-emp-search', role:'dd-role-search', prog:'dd-prog-search'}[type];
+  const listId = {emp:'dd-emp-list', role:'dd-role-list', prog:'dd-prog-list'}[type];
+  const q = document.getElementById(srcId)?.value.toLowerCase()||'';
+  const filtered = opts.filter(o => o.toLowerCase().includes(q));
+  const list = document.getElementById(listId);
+  if(!list) return;
+
+  // For employee dropdown: show a context line when narrowed by role/program
+  if (type === 'emp') {
+    const ctx = document.getElementById('dd-emp-ctx');
+    if (ctx) {
+      const narrowed = S.fRoles.length > 0 || S.fPrograms.length > 0;
+      ctx.style.display = narrowed ? 'block' : 'none';
+      if (narrowed) {
+        const parts = [];
+        if (S.fRoles.length)    parts.push(S.fRoles.length === 1 ? S.fRoles[0] : `${S.fRoles.length} roles`);
+        if (S.fPrograms.length) parts.push(S.fPrograms.length === 1 ? S.fPrograms[0] : `${S.fPrograms.length} programs`);
+        ctx.textContent = `${filtered.length} employee${filtered.length!==1?'s':''} match: ${parts.join(' + ')}`;
+      }
+    }
+  }
+
+  if(!filtered.length) { list.innerHTML = '<div class="dropdown-empty">No employees match the selected role / program</div>'; return; }
+  list.innerHTML = filtered.map(opt => {
+    const checked = sel.includes(opt);
+    const safeOpt = escHtml(opt).replace(/'/g, "\\'");
+    return `<label class="dropdown-item${checked?' selected':''}">
+      <input type="checkbox" ${checked?'checked':''} onchange="toggleFilter('${type}','${safeOpt}')"/>
+      <span class="dropdown-item-label">${escHtml(opt)}</span>
+    </label>`;
+  }).join('');
+}
+
+function toggleFilter(type, value) {
+  const arr = {emp:S.fEmpNames, role:S.fRoles, prog:S.fPrograms}[type];
+  const idx = arr.indexOf(value);
+  if(idx===-1) arr.push(value); else arr.splice(idx,1);
+  refreshDropdownOptions();
+  updateAllPills();
+  renderChips();
+  renderDashboard();          // apply immediately
+}
+
+function selectAllDropdown(type) {
+  const q = (document.getElementById({emp:'dd-emp-search',role:'dd-role-search',prog:'dd-prog-search'}[type])?.value||'').toLowerCase();
+  const {empNames,roles,programs} = getDropdownOptions();
+  const opts = {emp:empNames, role:roles, prog:programs}[type];
+  const arr  = {emp:S.fEmpNames, role:S.fRoles, prog:S.fPrograms}[type];
+  opts.filter(o => o.toLowerCase().includes(q)).forEach(o => { if(!arr.includes(o)) arr.push(o); });
+  refreshDropdownOptions(); updateAllPills(); renderChips(); renderDashboard();
+}
+
+function clearDropdown(type) {
+  if(type==='emp')  S.fEmpNames=[];
+  else if(type==='role') S.fRoles=[];
+  else if(type==='prog') S.fPrograms=[];
+  refreshDropdownOptions(); updateAllPills(); renderChips(); renderDashboard();
+}
+
+function markPending() { /* no-op — filters now apply immediately */ }
+
+function applySearch() {
+  closeDropdowns();
+  renderDashboard();          // close dropdowns + hard refresh
+}
+
+function updateFilterPill(type) {
+  const sel    = {emp:S.fEmpNames, role:S.fRoles, prog:S.fPrograms}[type];
+  const pill   = document.getElementById({emp:'fp-emp', role:'fp-role', prog:'fp-prog'}[type]);
+  const badge  = document.getElementById({emp:'fp-emp-badge', role:'fp-role-badge', prog:'fp-prog-badge'}[type]);
+  const lbl    = document.getElementById({emp:'fp-emp-label', role:'fp-role-label', prog:'fp-prog-label'}[type]);
+  const base   = {emp:'Employee', role:'Role', prog:'Program'}[type];
+  badge.style.display = sel.length ? 'inline-flex' : 'none';
+  badge.textContent   = sel.length;
+  pill.classList.toggle('has-value', sel.length > 0);
+  // For the Employee pill: when role or program filters are active, show how many employees are now available
+  if (type === 'emp' && (S.fRoles.length > 0 || S.fPrograms.length > 0) && S.allocations.length) {
+    const {empNames} = getDropdownOptions();
+    lbl.textContent = `${base} · ${empNames.length} available`;
+    pill.classList.add('has-value');  // always highlight when narrowed
+  } else {
+    lbl.textContent = base;
+  }
+}
+
+// Update all three pills at once — called after every filter change
+function updateAllPills() {
+  ['emp','role','prog'].forEach(t => updateFilterPill(t));
+}
+
+function renderChips() {
+  const wrap = document.getElementById('active-chips');
+  const all = [
+    ...S.fEmpNames.map(v=>['emp',v]),
+    ...S.fRoles.map(v=>['role',v]),
+    ...S.fPrograms.map(v=>['prog',v]),
+  ];
+  wrap.innerHTML = all.map(([t,v]) =>
+    `<div class="active-chip">
+       <span style="font-size:10px;color:var(--text3);margin-right:2px">${{emp:'👤',role:'💼',prog:'📁'}[t]}</span>
+       ${escHtml(v)}
+       <button class="chip-x" onclick="toggleFilter('${t}','${escHtml(v).replace(/'/g,"\\'")}')">×</button>
+     </div>`
+  ).join('');
+  const clearBtn = document.getElementById('clear-all-btn');
+  clearBtn.classList.toggle('visible', all.length>0||S.fStatus!=='all');
+}
+
+function toggleDropdown(type) {
+  const id = 'dd-'+type;
+  const pill = 'fp-'+type;
+  if(S.openDropdown===type) {
+    closeDropdowns();
+    return;
+  }
+  closeDropdowns();
+  S.openDropdown = type;
+  document.getElementById(id).classList.add('open');
+  document.getElementById(pill).classList.add('open');
+  renderDropdown(type);
+}
+
+function closeDropdowns() {
+  ['emp','role','prog'].forEach(t => {
+    document.getElementById('dd-'+t).classList.remove('open');
+    document.getElementById('fp-'+t).classList.remove('open');
+  });
+  S.openDropdown = null;
+}
+
+function clearAllFilters() {
+  S.fEmpNames=[]; S.fRoles=[]; S.fPrograms=[]; S.fStatus='all';
+  refreshDropdownOptions();
+  updateAllPills();
+  renderChips();
+  renderDashboard();
+}
+
+
+// Close on outside click
+document.addEventListener('mousedown', e => {
+  if(!e.target.closest('.filter-pill')&&!e.target.closest('.filter-dropdown')) closeDropdowns();
+});
+
+// ── Employee Setup ────────────────────────────────────────────────────
+function toggleAddForm() {
+  const f = document.getElementById('add-emp-form');
+  f.classList.toggle('visible');
+  if(!f.classList.contains('visible')) {
+    ['add-name','add-role','add-program'].forEach(id => document.getElementById(id).value='');
+  }
+}
+
+function addEmployee() {
+  const name = document.getElementById('add-name').value.trim();
+  if(!name) return;
+  S.empRoles[name] = {
+    role: document.getElementById('add-role').value.trim(),
+    program: document.getElementById('add-program').value.trim(),
+  };
+  saveRoles();
+  refreshDropdownOptions();
+  renderSetupTable();
+  toggleAddForm();
+  if(S.allocations.length) renderDashboard();
+}
+
+function renderSetupTable() {
+  const q = (document.getElementById('setup-search')?.value||'').toLowerCase();
+  const entries = Object.entries(S.empRoles)
+    .filter(([n])=>!q||n.toLowerCase().includes(q)||
+      (S.empRoles[n].role||'').toLowerCase().includes(q)||
+      (S.empRoles[n].program||'').toLowerCase().includes(q))
+    .sort(([a],[b])=>a.localeCompare(b));
+  document.getElementById('emp-count-label').textContent = `${Object.keys(S.empRoles).length} employee${Object.keys(S.empRoles).length!==1?'s':''}`;
+  const tbody = document.getElementById('setup-tbody');
+  if(!entries.length) {
+    tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;padding:36px;color:var(--text3);font-size:13px">${q?'No matches found':'No employees yet. Upload a roles file or add manually.'}</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = entries.map(([name,info],idx) => {
+    if(S.editingEmp===name) {
+      return `<tr>
+        <td style="padding:8px 18px;color:var(--text3)">${idx+1}</td>
+        <td style="padding:6px 10px"><input class="edit-input setup-table" id="e-name" value="${escHtml(name)}" style="border:1px solid var(--accent);border-radius:6px;padding:6px 9px;font-size:13px;width:100%"/></td>
+        <td style="padding:6px 10px"><input class="edit-input setup-table" id="e-role" value="${escHtml(info.role)}" style="border:1px solid var(--border);border-radius:6px;padding:6px 9px;font-size:13px;width:100%"/></td>
+        <td style="padding:6px 10px"><input class="edit-input setup-table" id="e-prog" value="${escHtml(info.program)}" style="border:1px solid var(--border);border-radius:6px;padding:6px 9px;font-size:13px;width:100%"/></td>
+        <td style="padding:6px 18px">
+          <div style="display:flex;gap:6px">
+            <button class="btn btn-primary" style="padding:5px 13px;font-size:12px" onclick="saveEdit('${escHtml(name).replace(/'/g,"\\'")}')">Save</button>
+            <button class="btn btn-ghost" style="padding:5px 12px;font-size:12px" onclick="cancelEdit()">Cancel</button>
+          </div>
+        </td>
+      </tr>`;
+    }
+    return `<tr>
+      <td style="padding:9px 18px;color:var(--text3)">${idx+1}</td>
+      <td style="padding:9px 18px;font-weight:600">${escHtml(name)}</td>
+      <td style="padding:9px 18px;color:var(--text2)">${escHtml(info.role)||'<span style="color:var(--text3)">—</span>'}</td>
+      <td style="padding:9px 18px">
+        ${info.program?`<span class="prog-badge">${escHtml(info.program)}</span>`:'<span style="color:var(--text3)">—</span>'}
+      </td>
+      <td style="padding:9px 18px">
+        <div style="display:flex;gap:6px">
+          <button class="btn btn-ghost" style="padding:5px 12px;font-size:12px" onclick="startEdit('${escHtml(name).replace(/'/g,"\\'")}')">✏️ Edit</button>
+          <button class="btn btn-danger" style="padding:5px 12px;font-size:12px" onclick="deleteEmp('${escHtml(name).replace(/'/g,"\\'")}')">🗑 Delete</button>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function startEdit(name) { S.editingEmp = name; renderSetupTable(); }
+function cancelEdit() { S.editingEmp = null; renderSetupTable(); }
+function saveEdit(oldName) {
+  const newName = document.getElementById('e-name')?.value.trim();
+  if(!newName) return;
+  if(newName!==oldName) delete S.empRoles[oldName];
+  S.empRoles[newName] = {
+    role: document.getElementById('e-role')?.value.trim()||'',
+    program: document.getElementById('e-prog')?.value.trim()||'',
+  };
+  S.editingEmp = null;
+  saveRoles();
+  refreshDropdownOptions();
+  renderSetupTable();
+  if(S.allocations.length) renderDashboard();
+}
+function deleteEmp(name) {
+  if(!confirm(`Remove "${name}" from the directory?`)) return;
+  delete S.empRoles[name];
+  saveRoles();
+  refreshDropdownOptions();
+  renderSetupTable();
+  if(S.allocations.length) renderDashboard();
+}
+
+// ── Session export / import ───────────────────────────────────────────
+function saveSession() {
+  if (!S._rawRows.length) {
+    alert('No data to save. Please upload an allocations file first.');
+    return;
+  }
+  const payload = {
+    version: '1',
+    savedAt: new Date().toISOString(),
+    selectedName: S.selectedName,
+    empRoles: S.empRoles,
+    rawRows: S._rawRows,
+  };
+  const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  const date = new Date().toISOString().slice(0, 10);
+  const name = (S.selectedName || 'session').replace(/\s+/g, '_');
+  a.download = `RU_Session_${name}_${date}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  setSaveStatus('saved');
+}
+
+function loadSession(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = evt => {
+    try {
+      const data = JSON.parse(evt.target.result);
+      if (!data.rawRows || !Array.isArray(data.rawRows) || !data.selectedName) {
+        alert('Invalid session file. Please use a file saved from this dashboard.');
+        return;
+      }
+      // Restore state
+      S._rawRows     = data.rawRows;
+      S.selectedName = data.selectedName;
+      if (data.empRoles && typeof data.empRoles === 'object') S.empRoles = data.empRoles;
+      S.allocations  = S._rawRows.filter(r => r.dirName === S.selectedName);
+      S.fEmpNames    = [];
+
+      // Persist to storage so this browser also remembers it
+      saveAllocations();
+      saveRoles();
+
+      // Update UI
+      document.getElementById('name-picker').style.display  = 'none';
+      document.getElementById('filter-area').style.display  = 'block';
+      document.getElementById('file-status').style.display  = 'flex';
+      document.getElementById('file-status-text').textContent = '✓ Session loaded';
+      document.getElementById('upload-btn-text').textContent  = 'Re-upload';
+      document.getElementById('alloc-summary').innerHTML =
+        `<span style="color:var(--accent);font-weight:600">${escHtml(S.selectedName)}</span>
+         &nbsp;·&nbsp; ${S.allocations.length} records
+         &nbsp;<button onclick="showNamePicker()" style="font-size:11px;color:var(--text3);background:none;border:none;cursor:pointer;text-decoration:underline;padding:0">change</button>`;
+
+      setTab('dashboard');
+      refreshDropdownOptions();
+      updateAllPills();
+      renderChips();
+      renderDashboard();
+    } catch (err) {
+      alert('Could not load session: ' + err.message);
+    }
+  };
+  reader.readAsText(file);
+  e.target.value = '';
+}
+function toggleExportMenu() {
+  const m = document.getElementById('export-menu');
+  m.style.display = m.style.display === 'none' ? 'block' : 'none';
+}
+document.addEventListener('mousedown', e => {
+  if (!e.target.closest('#export-wrap')) {
+    document.getElementById('export-menu').style.display = 'none';
+  }
+});
+
+function buildExportHTML() {
+  const {empData, rows} = getFilteredData();
+  const total = empData.length || 1;
+  const avail = empData.filter(e => e.status==='available').length;
+  const atCap = empData.filter(e => e.status==='atCapacity').length;
+  const over  = empData.filter(e => e.status==='overAllocated').length;
+  const date  = new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});
+
+  const COL = {
+    available:     {bg:'#EAF3DE', border:'#C0DD97', dot:'#639922', text:'#3B6D11', label:'Available'},
+    atCapacity:    {bg:'#FAEEDA', border:'#FAC775', dot:'#BA7517', text:'#854F0B', label:'At Capacity'},
+    overAllocated: {bg:'#FCEBEB', border:'#F7C1C1', dot:'#E24B4A', text:'#A32D2D', label:'Over Allocated'},
+  };
+
+  function allocColor(v){ return v>100?'#E24B4A':v>=80?'#BA7517':'#639922'; }
+
+  const tableRows = empData.map(({empName,rows:er,totalAlloc,status,role,program})=>{
+    const c = COL[status];
+    return er.map((row,i)=>{
+      const isLast = i===er.length-1;
+      const rowBorder = isLast ? 'border-bottom:2px solid #e2e8f0' : 'border-bottom:1px solid #f1f5f9';
+      const ac = allocColor(row.alloc);
+      return `<tr>
+        ${i===0?`<td rowspan="${er.length}" style="vertical-align:middle;padding:14px 16px;border:1px solid #e2e8f0;border-bottom:2px solid #e2e8f0;border-right:1px solid #f1f5f9;min-width:200px;background:#fff">
+          <div style="font-size:13px;font-weight:600;color:#0f172a;margin-bottom:2px">${escHtml(empName)}</div>
+          <div style="font-size:11px;color:#94a3b8;margin-bottom:5px">${escHtml(role)}</div>
+          ${program?`<span style="display:inline-block;padding:2px 8px;background:#eff6ff;color:#6366f1;border-radius:20px;font-size:10px;font-weight:600">${escHtml(program)}</span>`:''}
+        </td>`:''}
+        <td style="padding:11px 16px;${rowBorder};border-right:1px solid #f1f5f9;max-width:280px">
+          <div style="font-size:13px;color:#0f172a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(row.project)}</div>
+          <div style="font-size:11px;color:#94a3b8;margin-top:2px">ID · ${escHtml(row.projectId)}</div>
+        </td>
+        <td style="padding:11px 16px;${rowBorder};border-right:1px solid #f1f5f9;white-space:nowrap">
+          <span style="display:inline-block;padding:2px 0;font-size:13px;font-weight:600;color:${ac}">${row.alloc}%</span>
+          <div style="margin-top:4px;width:80px;height:5px;background:#f1f5f9;border-radius:3px">
+            <div style="width:${Math.min(row.alloc,100)}%;height:100%;background:${ac};border-radius:3px"></div>
+          </div>
+        </td>
+        <td style="padding:11px 16px;${rowBorder};border-right:1px solid #f1f5f9;white-space:nowrap">
+          <div style="font-size:12px;color:#0f172a">${escHtml(row.startDate)}</div>
+          <div style="font-size:11px;color:#94a3b8;margin-top:2px">→ ${escHtml(row.endDate)}</div>
+        </td>
+        ${i===0?`<td rowspan="${er.length}" style="vertical-align:middle;text-align:center;padding:16px;background:${c.bg};border-left:3px solid ${c.dot};border:1px solid ${c.border};border-bottom:2px solid #e2e8f0;min-width:130px">
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.6px;color:${c.text};margin-bottom:4px">${c.label}</div>
+          <div style="font-size:32px;font-weight:800;color:${c.text};line-height:1;margin-bottom:6px">${totalAlloc}%</div>
+          <div style="width:72px;height:5px;background:${c.dot}33;border-radius:3px;margin:0 auto 4px">
+            <div style="width:${Math.min(totalAlloc,100)}%;height:100%;background:${c.dot};border-radius:3px"></div>
+          </div>
+          <div style="font-size:10px;color:${c.text};opacity:0.7">${er.length} project${er.length!==1?'s':''}</div>
+        </td>`:''}
+      </tr>`;
+    }).join('');
+  }).join('');
+
+  return `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8"/>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Segoe UI',Arial,sans-serif;background:#fff;padding:28px 32px;color:#0f172a}
+  .report-header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:24px;padding-bottom:18px;border-bottom:2px solid #f1f5f9}
+  .report-title{font-size:22px;font-weight:700;color:#0f172a}
+  .report-sub{font-size:13px;color:#64748b;margin-top:4px}
+  .stats-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:24px}
+  .stat-card{padding:18px 20px;border-radius:10px;border:1.5px solid}
+  .stat-num{font-size:38px;font-weight:800;line-height:1;margin-bottom:5px}
+  .stat-label{font-size:12px;font-weight:600;margin-bottom:10px}
+  .stat-bar-track{height:5px;border-radius:3px}
+  .stat-bar-fill{height:100%;border-radius:3px}
+  .dist-bar{display:flex;height:10px;border-radius:5px;overflow:hidden;margin-bottom:24px}
+  .section-title{font-size:14px;font-weight:700;color:#0f172a;margin-bottom:12px}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  thead th{padding:11px 16px;text-align:left;font-size:10.5px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;background:#f8fafc;border-bottom:2px solid #e2e8f0}
+  thead th.cap{text-align:center;background:#f0f4ff;color:#6366f1}
+  @media print{body{padding:12px}@page{size:A4 landscape;margin:1.5cm}}
+</style>
+</head>
+<body>
+<div class="report-header">
+  <div>
+    <div class="report-title">Resource Utilization Report</div>
+    <div class="report-sub">Director / Manager: <strong>${escHtml(S.selectedName||'—')}</strong> &nbsp;·&nbsp; ${date} &nbsp;·&nbsp; ${rows.length} active records across ${empData.length} employee${empData.length!==1?'s':''}</div>
+  </div>
+</div>
+
+<div class="stats-grid">
+  ${[['available',avail],['atCapacity',atCap],['overAllocated',over]].map(([k,n])=>{
+    const c=COL[k]; const pct=Math.round(n/total*100);
+    return `<div class="stat-card" style="background:${c.bg};border-color:${c.border}">
+      <div class="stat-num" style="color:${c.text}">${n}</div>
+      <div class="stat-label" style="color:${c.text}">${c.label}</div>
+      <div style="font-size:11px;color:${c.text};opacity:0.7;margin-bottom:8px">${pct}% of ${total} employees</div>
+      <div class="stat-bar-track" style="background:${c.border}">
+        <div class="stat-bar-fill" style="width:${pct}%;background:${c.dot}"></div>
+      </div>
+    </div>`;
+  }).join('')}
+</div>
+
+<div class="dist-bar">
+  ${avail>0?`<div style="flex:${avail};background:#639922"></div>`:''}
+  ${atCap>0?`<div style="flex:${atCap};background:#BA7517"></div>`:''}
+  ${over>0?`<div style="flex:${over};background:#E24B4A"></div>`:''}
+</div>
+
+<div class="section-title">Allocation Details</div>
+<table>
+  <thead>
+    <tr>
+      <th>Employee</th>
+      <th>Project</th>
+      <th>% Alloc</th>
+      <th>Duration</th>
+      <th class="cap">Capacity</th>
+    </tr>
+  </thead>
+  <tbody>
+    ${tableRows||'<tr><td colspan="5" style="text-align:center;padding:40px;color:#94a3b8">No data to display</td></tr>'}
+  </tbody>
+</table>
+</body>
+</html>`;
+}
+
+function exportToExcel() {
+  document.getElementById('export-menu').style.display = 'none';
+  const html = buildExportHTML();
+  // Excel HTML format preserves merged cells, colors, and borders
+  const blob = new Blob(['\ufeff' + html], {type:'application/vnd.ms-excel;charset=utf-8'});
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  const name = (S.selectedName||'export').replace(/\s+/g,'_');
+  const date = new Date().toISOString().slice(0,10);
+  a.download = `Resource_Utilization_${name}_${date}.xls`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function exportToPDF() {
+  document.getElementById('export-menu').style.display = 'none';
+  const html = buildExportHTML();
+
+  // Use a hidden iframe — no popup permission needed
+  const iframe = document.createElement('iframe');
+  iframe.style.cssText = 'position:fixed;top:-10000px;left:-10000px;width:1200px;height:800px;opacity:0;pointer-events:none;border:none';
+  document.body.appendChild(iframe);
+
+  const iDoc = iframe.contentDocument || iframe.contentWindow.document;
+  iDoc.open();
+  iDoc.write(html);
+  iDoc.close();
+
+  // Give the iframe a moment to render, then print
+  setTimeout(() => {
+    try {
+      iframe.contentWindow.focus();
+      iframe.contentWindow.print();
+    } catch(e) {
+      alert('PDF export failed. Try downloading the Excel export instead.');
+    } finally {
+      setTimeout(() => {
+        if (document.body.contains(iframe)) document.body.removeChild(iframe);
+      }, 3000);
+    }
+  }, 600);
+}
+
+// ── Bench Resources ───────────────────────────────────────────────────
+
+function getBenchEmployees() {
+  const allocatedSet = new Set(
+    S.allocations
+      .filter(r => r.allocStatus === 'Allocated')
+      .map(r => r.empName.toLowerCase().trim())
+  );
+  return Object.entries(S.empRoles)
+    .filter(([name]) => !allocatedSet.has(name.toLowerCase().trim()))
+    .map(([name, info]) => ({ name, role: info.role||'—', program: info.program||'—' }));
+}
+
+function getBenchOptions() {
+  const all = getBenchEmployees();
+  const roles    = [...new Set(all.map(e => e.role).filter(r => r && r!=='—'))].sort();
+  const programs = [...new Set(all.map(e => e.program).filter(p => p && p!=='—'))].sort();
+  return { roles, programs };
+}
+
+function getBenchFiltered() {
+  return getBenchEmployees().filter(e => {
+    const roleOk = S.uRoles.length    === 0 || S.uRoles.includes(e.role);
+    const progOk = S.uPrograms.length === 0 || S.uPrograms.includes(e.program);
+    return roleOk && progOk;
+  }).sort((a,b) => a.name.localeCompare(b.name));
+}
+
+function renderBench() {
+  const filtered = getBenchFiltered();
+  const all      = getBenchEmployees();
+  document.getElementById('bench-meta').textContent =
+    `${filtered.length} of ${all.length} employee${all.length!==1?'s':''} with no active allocation`;
+
+  const CARD_COLORS = [
+    ['#dbeafe','#1e40af'],['#dcfce7','#166534'],['#fef3c7','#92400e'],
+    ['#fce7f3','#831843'],['#d1fae5','#065f46'],['#ede9fe','#4c1d95'],
+    ['#e0f2fe','#0c4a6e'],['#fee2e2','#991b1b'],
+  ];
+  const { roles } = getBenchOptions();
+  document.getElementById('bench-cards').innerHTML = roles.map((role, i) => {
+    const count = filtered.filter(e => e.role === role).length;
+    const total = all.filter(e => e.role === role).length;
+    const [bg, tc] = CARD_COLORS[i % CARD_COLORS.length];
+    const isActive = S.uRoles.includes(role);
+    return `<div onclick="benchToggleRole('${escHtml(role).replace(/'/g,"\\'")}')") style="padding:14px 18px;background:${bg};border-radius:var(--radius);border:2px solid ${isActive?tc:tc+'33'};min-width:140px;cursor:pointer;transition:all 0.15s;box-shadow:${isActive?'0 4px 12px '+tc+'44':'none'}">
+      <div style="font-size:28px;font-weight:800;color:${tc};line-height:1">${count}</div>
+      <div style="font-size:11px;font-weight:600;color:${tc};margin-top:3px">${escHtml(role)}</div>
+      <div style="font-size:10px;color:${tc};opacity:0.6;margin-top:2px">${total} in roles file</div>
+    </div>`;
+  }).join('');
+
+  const tbody = document.getElementById('bench-tbody');
+  if (!filtered.length) {
+    tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;padding:48px;color:var(--text3);font-size:13px">
+      ${all.length === 0
+        ? 'Upload the Allocations file and ensure Role Based Employees are loaded.'
+        : 'No bench employees match the selected filters.'}
+    </td></tr>`;
+    return;
+  }
+  tbody.innerHTML = filtered.map((e, i) => {
+    const ai = i % AVATAR_COLORS.length;
+    const [avBg, avTx] = AVATAR_COLORS[ai];
+    const ini = e.name.split(' ').slice(0,2).map(w=>w[0]||'').join('').toUpperCase();
+    return `<tr style="border-bottom:1px solid var(--border2)">
+      <td style="padding:11px 16px;color:var(--text3)">${i+1}</td>
+      <td style="padding:11px 16px">
+        <div style="display:flex;align-items:center;gap:10px">
+          <div style="width:34px;height:34px;border-radius:50%;background:${avBg};color:${avTx};display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;font-family:'Outfit',sans-serif;flex-shrink:0">${escHtml(ini)}</div>
+          <span style="font-size:13px;font-weight:600;color:var(--text1)">${escHtml(e.name)}</span>
+        </div>
+      </td>
+      <td style="padding:11px 16px;color:var(--text2);font-size:13px">${escHtml(e.role)}</td>
+      <td style="padding:11px 16px">
+        ${e.program!=='—'
+          ? `<span style="padding:2px 9px;background:rgba(99,102,241,0.1);color:var(--accent);border-radius:20px;font-size:11px;font-weight:600">${escHtml(e.program)}</span>`
+          : '<span style="color:var(--text3)">—</span>'}
+      </td>
+      <td style="padding:11px 16px;text-align:center">
+        <span style="display:inline-flex;align-items:center;gap:5px;padding:4px 13px;background:var(--green-bg);border:1px solid var(--green-border);border-radius:50px;font-size:12px;font-weight:600;color:var(--green)">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+          100% Free
+        </span>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+let _benchOpenDD = null;
+function toggleBenchDD(type) {
+  const sfx = type.slice(1);
+  if (_benchOpenDD === type) { closeBenchDDs(); return; }
+  closeBenchDDs();
+  _benchOpenDD = type;
+  document.getElementById('bdd-'+sfx).classList.add('open');
+  document.getElementById('bfp-'+sfx).classList.add('open');
+  renderBenchDD(type);
+}
+function closeBenchDDs() {
+  ['brole','bprog'].forEach(t => {
+    document.getElementById('bdd-'+t.slice(1)).classList.remove('open');
+    document.getElementById('bfp-'+t.slice(1)).classList.remove('open');
+  });
+  _benchOpenDD = null;
+}
+document.addEventListener('mousedown', e2 => {
+  if (!e2.target.closest('#bdd-role') && !e2.target.closest('#bfp-role') &&
+      !e2.target.closest('#bdd-prog') && !e2.target.closest('#bfp-prog')) closeBenchDDs();
+});
+
+function renderBenchDD(type) {
+  const sfx = type.slice(1);
+  const { roles, programs } = getBenchOptions();
+  const opts = type==='brole' ? roles : programs;
+  const sel  = type==='brole' ? S.uRoles : S.uPrograms;
+  const q = (document.getElementById('bdd-'+sfx+'-s')?.value||'').toLowerCase();
+  const items = opts.filter(o => o.toLowerCase().includes(q));
+  const list  = document.getElementById('bdd-'+sfx+'-list');
+  if (!list) return;
+  list.innerHTML = items.length
+    ? items.map(opt => {
+        const chk = sel.includes(opt);
+        return `<label class="dropdown-item${chk?' selected':''}">
+          <input type="checkbox" ${chk?'checked':''} onchange="benchToggle('${type}','${escHtml(opt).replace(/'/g,"\\'")}')"/>
+          <span class="dropdown-item-label">${escHtml(opt)}</span>
+        </label>`;
+      }).join('')
+    : '<div class="dropdown-empty">No options</div>';
+  const badge = document.getElementById('bfp-'+sfx+'-badge');
+  badge.style.display = sel.length ? 'inline-flex' : 'none';
+  badge.textContent   = sel.length;
+  document.getElementById('bfp-'+sfx).classList.toggle('has-value', sel.length>0);
+  document.getElementById('bfp-'+sfx+'-lbl').textContent = type==='brole' ? 'Role' : 'Program';
+  document.getElementById('bench-clear-btn').style.display =
+    (S.uRoles.length||S.uPrograms.length) ? 'inline-flex' : 'none';
+}
+
+function benchToggle(type, value) {
+  const arr = type==='brole' ? S.uRoles : S.uPrograms;
+  const idx = arr.indexOf(value);
+  if (idx===-1) arr.push(value); else arr.splice(idx,1);
+  renderBenchDD('brole'); renderBenchDD('bprog'); renderBench();
+}
+function benchToggleRole(role) { benchToggle('brole', role); }
+function benchSelAll(type) {
+  const { roles, programs } = getBenchOptions();
+  const arr = type==='brole' ? S.uRoles : S.uPrograms;
+  (type==='brole' ? roles : programs).forEach(o => { if(!arr.includes(o)) arr.push(o); });
+  renderBenchDD('brole'); renderBenchDD('bprog'); renderBench();
+}
+function benchClr(type) {
+  if (type==='brole') S.uRoles=[]; else S.uPrograms=[];
+  renderBenchDD('brole'); renderBenchDD('bprog'); renderBench();
+}
+function benchClearAll() {
+  S.uRoles=[]; S.uPrograms=[];
+  renderBenchDD('brole'); renderBenchDD('bprog'); renderBench();
+}
+
+// ── Boot ──────────────────────────────────────────────────────────────
+async function boot() {
+  await loadRoles();
+  renderChips();
+  if (Object.keys(S.empRoles).length) refreshDropdownOptions();
+
+  try {
+    const activeId = await cloudGet('active_upload_id');
+    if (activeId) {
+      const list = await getUploadList();
+      const meta = list.find(u => u.id === activeId);
+      if (meta && meta.selectedName) {
+        const rows = await getUploadRows(activeId);
+        if (rows && rows.length) {
+          S._rawRows       = rows;
+          S.selectedName   = meta.selectedName;
+          S.activeUploadId = activeId;
+          S.allocations    = rows.filter(r => r.dirName === meta.selectedName);
+          if (S.allocations.length > 0) {
+            applyUIAfterLoad(meta.fileName);
+            return;
+          }
+        }
+      }
+    }
+  } catch(e) { console.warn('Boot load failed:', e); }
+  updateHistoryBadge();
+}
+boot();
+</script>
+
+<!-- History overlay + modal -->
+<div id="history-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:999" onclick="closeHistory()"></div>
+<div id="history-panel" style="display:none;position:fixed;top:0;right:0;bottom:0;width:520px;max-width:95vw;background:var(--white);box-shadow:-4px 0 32px rgba(0,0,0,0.18);z-index:1000;flex-direction:column">
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:18px 20px;border-bottom:1px solid var(--border);flex-shrink:0">
+    <div style="font-family:'Outfit',sans-serif;font-size:17px;font-weight:700">Upload History</div>
+    <button onclick="closeHistory()" style="width:30px;height:30px;border-radius:50%;border:1px solid var(--border);background:var(--bg);cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center;color:var(--text2)">✕</button>
+  </div>
+  <div style="padding:12px 20px;border-bottom:1px solid var(--border2);background:#f8fafc;flex-shrink:0">
+    <p style="font-size:12px;color:var(--text3);margin:0">Each upload is stored separately — nothing is ever overwritten. Click <strong>Load</strong> to switch to a previous version.</p>
+  </div>
+  <div id="history-list" style="flex:1;overflow-y:auto"></div>
+</div>
+
+</body>
+</html>
